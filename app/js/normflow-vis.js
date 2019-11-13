@@ -30,12 +30,12 @@ NormflowVis.prototype.initVis = function() {
       .attr("transform", "translate(" + vis.margin.left + "," + vis.margin.top + ")");
 
   // SVG clipping path
-  vis.svg.append('defs')
-      .append('clipPath')
-      .attr('id', 'clip')
-      .append('rect')
-      .attr('width', vis.width)
-      .attr('height', vis.height);
+  // vis.svg.append('defs')
+  //     .append('clipPath')
+  //     .attr('id', 'clip')
+  //     .append('rect')
+  //     .attr('width', vis.width)
+  //     .attr('height', vis.height);
 
   vis.contours = vis.svg.append('g');
 
@@ -87,6 +87,8 @@ NormflowVis.prototype.wrangleData = function() {
 NormflowVis.prototype.updateVis = function() {
   var vis = this;
 
+  vis.writeFlow();
+
   vis.colorScale.domain(d3.extent(vis.displayData, d => d.value));
 
   var contours = vis.contours
@@ -99,6 +101,7 @@ NormflowVis.prototype.updateVis = function() {
         .attr("fill", d => vis.colorScale(d.value));
 
   contours.exit().remove();
+
 };
 NormflowVis.prototype.updateFlow = function(newParams) {
   var vis = this;
@@ -114,4 +117,14 @@ NormflowVis.prototype.updateData = function(newData) {
 
   vis.data = newData;
   vis.wrangleData();
+};
+NormflowVis.prototype.writeFlow = function() {
+  var vis = this;
+
+  var flowLabel = "$f(z) = z + \\tanh\\left(w^Tz + b\\right)$";
+  vis.svg.append('text')
+      .attr('class', 'flow-label')
+      .attr('x', 0)
+      .attr('y', -20)
+      .text(flowLabel);
 };
