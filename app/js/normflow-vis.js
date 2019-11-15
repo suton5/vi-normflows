@@ -17,8 +17,8 @@ NormflowVis.prototype.initVis = function() {
 
   vis.margin = { top: 40, right: 0, bottom: 60, left: 60 };
 
-  vis.width = 400;
-  vis.height = 400;
+  vis.width = 300;
+  vis.height = 300;
 
   vis.extent = 10;
 
@@ -28,14 +28,6 @@ NormflowVis.prototype.initVis = function() {
       .attr("height", vis.height + vis.margin.top + vis.margin.bottom)
       .append("g")
       .attr("transform", "translate(" + vis.margin.left + "," + vis.margin.top + ")");
-
-  // SVG clipping path
-  // vis.svg.append('defs')
-  //     .append('clipPath')
-  //     .attr('id', 'clip')
-  //     .append('rect')
-  //     .attr('width', vis.width)
-  //     .attr('height', vis.height);
 
   vis.contours = vis.svg.append('g');
 
@@ -72,6 +64,23 @@ NormflowVis.prototype.initVis = function() {
   vis.sliderU1 = new Slider('u1', vis.parentElement, vis.width, -5, 5, val => vis.updateFlow({'u1': val}));
   vis.sliderB = new Slider('b', vis.parentElement, vis.width, -5, 5, val => vis.updateFlow({'b': val}));
 
+  // Adding label of dot product
+  vis.dotProdLab = vis.svg.append('text')
+      .attr('class', 'label')
+      .attr('x', 20)
+      .attr('y', 0);
+
+  // Adding label for flow parameters
+  vis.flowLabs = vis.svg.append('g')
+      .attr('transform', 'translate(0,' + (vis.height + vis.margin.bottom - 20) + ')')
+      .attr('class', 'flow-labs');
+  vis.wLab = vis.flowLabs.append('text')
+      .attr('transform', 'translate(0,0)');
+  vis.uLab = vis.flowLabs.append('text')
+      .attr('transform', 'translate(' + vis.width / 3 + ',0)');
+  vis.bLab = vis.flowLabs.append('text')
+      .attr('transform', 'translate(' + vis.width * 2 / 3 + ',0)');
+
   vis.wrangleData();
 };
 
@@ -81,13 +90,12 @@ NormflowVis.prototype.wrangleData = function() {
   vis.transformedData = vis.flow.transform(vis.data);
   vis.displayData = vis.density(vis.transformedData);
 
+  vis.updateChildData(vis.transformedData);
   vis.updateVis();
 };
 
 NormflowVis.prototype.updateVis = function() {
   var vis = this;
-
-  vis.writeFlow();
 
   vis.colorScale.domain(d3.extent(vis.displayData, d => d.value));
 
@@ -102,15 +110,18 @@ NormflowVis.prototype.updateVis = function() {
 
   contours.exit().remove();
 
+  var dotProd = vis.dotProd();
+  vis.dotProdLab.text('w^Tu = ' + format1d(dotProd))
+      .attr('fill', () => dotProd >= -1 ? 'black' : 'red');
+  vis.wLab.text('w = [' + format1d(vis.flow.w0) + ', ' + format1d(vis.flow.w1) + ']');
+  vis.uLab.text('u = [' + format1d(vis.flow.u0) + ', ' + format1d(vis.flow.u1) + ']');
+  vis.bLab.text('b = ' + format1d(vis.flow.b));
+
 };
 NormflowVis.prototype.updateFlow = function(newParams) {
   var vis = this;
   vis.flow.updateParams(newParams);
   vis.wrangleData();
-
-  if (vis.childVis) {
-    vis.childVis.updateData(vis.transformedData);
-  }
 };
 NormflowVis.prototype.updateData = function(newData) {
   var vis = this;
@@ -118,13 +129,14 @@ NormflowVis.prototype.updateData = function(newData) {
   vis.data = newData;
   vis.wrangleData();
 };
-NormflowVis.prototype.writeFlow = function() {
+NormflowVis.prototype.dotProd = function() {
   var vis = this;
 
-  var flowLabel = "$f(z) = z + \\tanh\\left(w^Tz + b\\right)$";
-  vis.svg.append('text')
-      .attr('class', 'flow-label')
-      .attr('x', 0)
-      .attr('y', -20)
-      .text(flowLabel);
+  return vis.flow.w0 * vis.flow.u0 + vis.flow.w1 * vis.flow.u1;
+};
+NormflowVis.prototype.updateChildData = function(newData) {
+  var vis = this;
+  if (vis.childVis) {
+    vis.childVis.updateData(newData);
+  }
 };
