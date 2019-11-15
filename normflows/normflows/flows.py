@@ -24,9 +24,12 @@ def planar_flow(z: np.ndarray,
     :math:`f(z) = z + uh(w^Tz + b)`
     """
     if h == np.tanh:
+        print("prev u", u)
         u = _get_uhat(u, w)
+        print("new u", u)
+    print("w" ,w)
 
-    assert np.dot(u, w) >= -1, 'Flow is not guaranteed to be invertible (u^Tw < -1)'
+    assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
 
     w = w.flatten()
     u = u.flatten()
