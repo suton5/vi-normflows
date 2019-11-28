@@ -24,7 +24,6 @@ def planar_flow(z: np.ndarray,
     :math:`f(z) = z + uh(w^Tz + b)`
     """
     if h == np.tanh:
-        print("prev u", u)
         u = _get_uhat(u, w)
     assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
 
@@ -50,7 +49,7 @@ def planar_flow(z: np.ndarray,
 
 
 def _get_uhat(u, w):
-    return u + (m(np.dot(w, u)) - np.dot(w, u)) * (w/np.linalg.norm(w))#np.divide(w, np.dot(w, w))
+    return u + (m(np.dot(w, u)) - np.dot(w, u)) * (w/(np.linalg.norm(w)**2))#np.divide(w, np.dot(w, w))
 
 
 def m(x):
