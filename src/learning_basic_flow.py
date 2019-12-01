@@ -2,41 +2,44 @@ from autograd import grad
 from autograd.misc.optimizers import adam, rmsprop, sgd
 from autograd import numpy as np
 import autograd.numpy.random as npr
-from autograd import scipy as sp
 
-from tqdm import tqdm_notebook as tqdm
+# from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
 from normflows import flows
 
 
-dim_z = 1
+dim_z = 2
 num_samples = 10000
-K = 1
 rs = npr.RandomState(0)
 
 # Defining the true flow
-w_test = np.array([[-5.]])
-u_test = np.array([[-2.]])
+w_test = np.array([[-5., 1]])
+u_test = np.array([[-2., 1]])
 b_test = np.array([0])
 
 
-def sample_from_pz(num_samples):
-    Z = np.zeros((K, num_samples, dim_z))
-    z = rs.randn(num_samples, dim_z)
+def sample_from_pz(mu, log_sigma_diag, W, U, b, K, num_samples):
+    Sigma = np.diag(np.exp(log_sigma_diag))
+    dim_z = len(mu)
+
+    Z = np.zeros((K + 1, num_samples, dim_z))
+    z = rs.multivariate_normal(mu, Sigma, num_samples)
 
     Z[0] = z
-    Z[1] = flows.planar_flow(z, w_test[0], u_test[0], b_test[0])
+    for k in range(K):
+        Z[k + 1] = flows.planar_flow(z, W[k], U[k], b[k])
     return Z
 
 
 def plot_samples(Z):
-    fig, axs = plt.subplots(1, 2)
-    for i in range(2):
+    fig, axs = plt.subplots(1, Z.shape[0])
+    for i in range(Z.shape[0]):
         axs[i].scatter(Z[i, :, 0], Z[i, :, 1], alpha=0.3)
 
-    plt.show()
+    # plt.show()
 
 
 def gradient_create(logq0, logp, hprime, logdet_jac, F, dim_z, num_samples, K):
@@ -110,17 +113,18 @@ def optimize(dim_z, num_samples, K, max_iter, step_size, verbose):
 
     def callback(params, t, g):
         pbar.update()
-        # if verbose:
-        #     if t % 1000 == 0:
-        #         print(f"Iteration {t}; gradient mag: {np.linalg.norm(gradient(params, t))}")
+        if verbose:
+            if t % 1000 == 0:
+                grad_mag = np.linalg.norm(gradient(params, t))
+                tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
 
     # Initializing
     init_mu0 = np.zeros(dim_z)
     init_log_sigma0 = np.zeros(dim_z)
-    # init_W = np.ones((K, dim_z))
-    # init_U = np.ones((K, dim_z))
-    init_W = np.array([[-2., 0.]])
-    init_U = np.array([[-2., 0.]])
+    init_W = np.ones((K, dim_z)) * -1
+    init_U = np.ones((K, dim_z)) * -1
+    # init_W = np.array([[-2., 0.]])
+    # init_U = np.array([[-2., 0.]])
     init_b = np.zeros(K)
 
     init_params = np.concatenate((init_mu0, init_log_sigma0, init_W.flatten(), init_U.flatten(), init_b))
@@ -131,10 +135,13 @@ def optimize(dim_z, num_samples, K, max_iter, step_size, verbose):
     return unpack_params(variational_params)
 
 
-def run_optimization():
-    return optimize(dim_z, num_samples, K, 5000, 1e-3, True)
+def run_optimization(K, max_iter=5000, step_size=1e-3):
+    return optimize(dim_z, num_samples, K, max_iter, step_size, True)
 
 
 if __name__ == '__main__':
-    plot_samples(sample_from_pz(num_samples))
+    plot_samples(sample_from_pz(np.zeros(dim_z), np.zeros(dim_z), w_test, u_test, b_test, 1, num_samples))
+    mu, log_sigma_diag, W, U, b = run_optimization(2, max_iter=10000)
+    plot_samples(sample_from_pz(mu, log_sigma_diag, W, U, b, 2, num_samples))
 
+    plt.show()
