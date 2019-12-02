@@ -70,16 +70,18 @@ def gradient_create(target, eps, dim_z, num_samples, K):
 
     return variational_objective, gradient, unpack_params
 
-K = 16
+K = 8
 dim_z = 2
-num_samples = 10000
+num_samples = 1000
 
-objective, gradient, unpack_params = gradient_create(p1, 1e-7, dim_z, num_samples, K)
+objective, gradient, unpack_params = gradient_create(p2, 1e-7, dim_z, num_samples, K)
 
+objectives = []
 def callback(params, t, g):
     if t%100 == 0:
         print("Iteration {}; Gradient mag: {}; Objective: {}".format(t,
             np.linalg.norm(gradient(params, t)), objective(params, t)))
+        objectives.append(objective(params, t))
 
 
 init_W = 1*np.ones((K, dim_z))
@@ -87,18 +89,19 @@ init_U = 1*np.ones((K, dim_z))
 init_b = 1*np.ones((K))
 init_params = np.concatenate((init_W.flatten(), init_U.flatten(), init_b.flatten()))
 
-variational_params = adam(gradient, init_params, callback, 2000, 1e-2)
+variational_params = adam(gradient, init_params, callback, 20000, 5e-4)
 W, U, B = unpack_params(variational_params)
 z0 = np.random.randn(num_samples, dim_z)
 z_prev = z0
 for k in range(K):
-    plt.figure(figsize=(10,8))
-    plt.scatter(z_prev[:,0], z_prev[:,1])
-    plt.show()
     w, u, b = W[k], U[k], B[k]
     u_hat = (m(np.dot(w,u)) - np.dot(w,u)) * (w / np.linalg.norm(w)) + u
     z_prev = z_prev + np.outer(h(np.matmul(z_prev, w) + b), u_hat)
 z_K = z_prev
+
+plt.figure(figsize=(10,8))
+plt.plot(objectives)
+plt.show()
 
 plt.figure(figsize=(10,8))
 plt.scatter(z_K[:,0], z_K[:,1])
