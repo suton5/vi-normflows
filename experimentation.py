@@ -2,10 +2,8 @@ from autograd import numpy as np
 import autograd.numpy.random as npr
 from autograd import grad
 from autograd.misc.optimizers import adam, sgd, rmsprop
-from autograd import scipy as sp
-from scipy.special import logsumexp
+#from autograd import scipy as sp
 import numpy
-import scipy
 import matplotlib.pyplot as plt
 import sys
 
@@ -60,8 +58,6 @@ def gradient_create(target, eps, dim_z, num_samples, K):
             sum_log_det_jacob += np.log(eps + np.abs(1 + np.matmul(affine, u)))
             z_prev = z_prev + np.outer(h(np.matmul(z_prev, w) + b), u_hat)
         z_K = z_prev
-        #log_q_K = sp.stats.multivariate_normal.pdf(z0, np.zeros(2), np.eye(2))
-        #- sum_log_det_jacob
         log_q_K = -0.5 * np.sum(np.log(2*np.pi) + z0**2, 1) - sum_log_det_jacob
         log_p = np.log(eps + target(z_K))
         return np.mean(log_q_K - log_p)
@@ -70,11 +66,13 @@ def gradient_create(target, eps, dim_z, num_samples, K):
 
     return variational_objective, gradient, unpack_params
 
-K = 8
+K = 16
 dim_z = 2
 num_samples = 1000
+num_iter = 45000
+func = p2
 
-objective, gradient, unpack_params = gradient_create(p2, 1e-7, dim_z, num_samples, K)
+objective, gradient, unpack_params = gradient_create(func, 1e-7, dim_z, num_samples, K)
 
 objectives = []
 def callback(params, t, g):
@@ -82,6 +80,18 @@ def callback(params, t, g):
         print("Iteration {}; Gradient mag: {}; Objective: {}".format(t,
             np.linalg.norm(gradient(params, t)), objective(params, t)))
         objectives.append(objective(params, t))
+    if t%5000 == 0:
+        W, U, B = unpack_params(params)
+        z0 = np.random.randn(num_samples, dim_z)
+        z_prev = z0
+        for k in range(K):
+            w, u, b = W[k], U[k], B[k]
+            u_hat = (m(np.dot(w,u)) - np.dot(w,u)) * (w / np.linalg.norm(w)) + u
+            z_prev = z_prev + np.outer(h(np.matmul(z_prev, w) + b), u_hat)
+        z_K = z_prev
+        plt.figure(figsize=(5,4))
+        plt.scatter(z_K[:,0], z_K[:,1])
+        plt.show()
 
 
 init_W = 1*np.ones((K, dim_z))
@@ -89,7 +99,9 @@ init_U = 1*np.ones((K, dim_z))
 init_b = 1*np.ones((K))
 init_params = np.concatenate((init_W.flatten(), init_U.flatten(), init_b.flatten()))
 
-variational_params = adam(gradient, init_params, callback, 20000, 5e-4)
+variational_params = adam(gradient, init_params, callback, num_iter, 1e-4)
+
+
 W, U, B = unpack_params(variational_params)
 z0 = np.random.randn(num_samples, dim_z)
 z_prev = z0
@@ -103,6 +115,15 @@ plt.figure(figsize=(10,8))
 plt.plot(objectives)
 plt.show()
 
-plt.figure(figsize=(10,8))
-plt.scatter(z_K[:,0], z_K[:,1])
-plt.show()
+fig,ax=plt.subplots(1,1,figsize = (10,8))
+nbins = 100
+x, y = z0[:, 0], z0[:, 1]
+xi, yi = numpy.mgrid[-4:4:nbins*1j, -4:4:nbins*1j]
+zi = np.array([func(np.vstack([xi.flatten(), yi.flatten()])[:,i].reshape(-1,2)) for i in range(nbins**2)])
+ax.pcolormesh(xi, yi, zi.reshape(xi.shape))
+ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap=plt.cm.Reds_r)
+plt.scatter(z_K[:,0], z_K[:,1], alpha=0.2)
+plt.xlim([-4, 4])
+plt.ylim([-4, 4])
+plt.savefig('results/'+func.__name__+'/'+func.__name__+'_'+str(K)+'_'+str(num_iter)+'.png')
+#plt.show()
