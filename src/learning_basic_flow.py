@@ -141,7 +141,7 @@ def run_optimization(K, max_iter=5000, step_size=1e-3):
 
 if __name__ == '__main__':
     plot_samples(sample_from_pz(np.zeros(dim_z), np.zeros(dim_z), w_test, u_test, b_test, 1, num_samples))
-    mu, log_sigma_diag, W, U, b = run_optimization(2, max_iter=10000)
-    plot_samples(sample_from_pz(mu, log_sigma_diag, W, U, b, 2, num_samples))
+    mu, log_sigma_diag, W, U, b = run_optimization(6, max_iter=10000)
+    plot_samples(sample_from_pz(mu, log_sigma_diag, W, U, b, 6, num_samples))
 
     plt.show()
