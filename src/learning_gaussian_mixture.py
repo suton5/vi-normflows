@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
-from normflows import flows
+from normflows import flows, distributions
 
 
 rs = npr.RandomState(0)
@@ -52,6 +52,8 @@ def plot_samples(Z, ax):
 
 
 def get_gmm_samples(n_samples=10000):
+    """Simple GMM with two modes
+    """
     mus = np.array([0, 4]).reshape(-1, 1)
     Sigma_diags = np.array([1, 1]).reshape(-1, 1)
     probs = np.array([0.4, 0.6])
@@ -114,28 +116,33 @@ def gradient_create(hprime, logdet_jac, F, D, X, K, G, N):
         phi = params[:2 * D * (1 + K) + K]
         theta = params[2 * D * (1 + K) + K:]
 
-        mu0 = params[:D]
-        log_sigma_diag0 = params[D:2 * D]
-        W = params[2 * D:2 * D + K * D].reshape(K, D)
-        U = params[2 * D + K * D:2 * (D + K * D)].reshape(K, D)
-        b = params[-K:]
+        phi = unpack_phi(phi)
+        theta = unpack_theta(theta)
 
+        return phi, theta
+
+    def unpack_phi(phi):
+        mu0 = phi[:D]
+        log_sigma_diag0 = phi[D:2 * D]
+        W = phi[2 * D:2 * D + K * D].reshape(K, D)
+        U = phi[2 * D + K * D:2 * (D + K * D)].reshape(K, D)
+        b = phi[-K:]
+
+        return mu0, log_sigma_diag0, W, U, b
+
+    def unpack_theta(theta):
         mu_z = theta[:D * G].reshape(G, D)
         log_sigma_diag_pz = theta[D * G: 2 * D * G].reshape(G, D)
         pi = theta[2 * D * G:2 * D * G + G - 1]
-        A = theta[-(D**2 + 2 * D):-2 * D].reshape(D, D)
+        A = theta[-(D ** 2 + 2 * D):-2 * D].reshape(D, D)
         B = theta[-2 * D:-D]
         log_sigma_diag_lklhd = theta[-D:]
 
-        phi = mu0, log_sigma_diag0, W, U, b
-        theta = mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd
-
-        return phi, theta
+        return mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd
 
     def variational_objective(params, t):
         phi, theta = unpack_params(params)
         mu0, log_sigma_diag0, W, U, b = phi
-        mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd = theta
 
         z0 = rs.randn(N, D) * np.sqrt(np.exp(log_sigma_diag0)) + mu0
         free_energy = F(z0, X, phi, theta, D, N, K, t)
@@ -184,7 +191,7 @@ def optimize(logp, X, D, G, K, N,
             zk = flows.planar_flow(zk, W[k], U[k], b[k])
 
         first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk.T, theta))
+        second = np.mean(logp(X, zk, theta))
         third = np.mean(running_sum)
 
         return first - second - third
@@ -202,7 +209,7 @@ def optimize(logp, X, D, G, K, N,
                 grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
 
-    # --- Initializing ---
+    # --- Initializing --- #
     # phi
     init_mu0 = np.zeros(D)
     init_log_sigma0 = np.zeros(D)
@@ -219,8 +226,8 @@ def optimize(logp, X, D, G, K, N,
         ])
 
     # theta
-    init_mu_z = np.zeros(D, G)
-    init_log_sigma_z = np.zeros(D, G)
+    init_mu_z = np.zeros((D, G))
+    init_log_sigma_z = np.zeros((D, G))
     init_pi = np.ones(G - 1) * 0.5
     init_A = np.eye(D)
     init_B = np.zeros(D)
@@ -235,7 +242,7 @@ def optimize(logp, X, D, G, K, N,
             init_log_sigma_lklhd
         ])
 
-    init_params = np.concatenate(init_phi, init_theta)
+    init_params = np.concatenate((init_phi, init_theta))
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
 
@@ -248,41 +255,15 @@ def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
     mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd = theta
-    log_prob_z = log_prob_gm(Z, mu_z, log_sigma_diag_pz, pi)
-    mu_x = np.matmul(A, Z) + B
-    log_prob_x = log_mvn(X, mu_x, log_sigma_diag_lklhd)
+    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_pz, pi)
+
+    mu_x = (np.matmul(A, Z.T).T + B)
+    log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
 
     return log_prob_x + log_prob_z
 
-
-def log_prob_gm(Z, mu, log_sigma_diag, pi):
-    assert np.sum(pi) < 1, f'probabilities of GMM do not sum to less than 1 ({np.sum(pi)})'
-
-    N, D = Z.shape
-    G =mu.shape[0]
-
-    log_prob = 0
-    for g in range(G):
-        # Multivariate gaussian
-        if g == G:
-            pi_g = 1 - np.sum(pi)
-        else:
-            pi_g = pi[g]
-        log_prob += log_mvn(Z, mu[g], log_sigma_diag[g]) * pi_g
-    return log_prob
-
-
-def log_mvn(Z, mu, log_sigma_diag):
-    D = Z.shape[1]
-    mu = mu.reshape(1, D)
-    logdet_sigma = np.sum(log_sigma_diag)
-    siginv = np.linalg.inv(np.exp(log_sigma_diag).reshape(D, D))
-
-    return -D / 2 * np.log(2 * np.pi) - 0.5 * logdet_sigma - 0.5 * np.matmul(np.matmul((Z - mu).T, siginv), (Z - mu))
-
-
 def run_optimization(X, K, D, G, max_iter=5000, N=10000, step_size=1e-3):
-    return optimize(logp, D, G, K, N,
+    return optimize(logp, X, D, G, K, N,
                     max_iter, step_size,
                     verbose=True)
 
@@ -296,9 +277,9 @@ def main():
     Z = get_gmm_samples()
     X = f_true(Z)
 
-    phi, theta = run_optimization(X, K, D, G)
+    phi, theta = run_optimization(X, K, D, G, max_iter=2)
 
-    Zhat = sample_from_pz(*phi, n_samples)
+    Zhat = sample_from_pz(*phi, K, n_samples)
 
     fig, axs = plt.subplots(ncols=2)
     plot_samples(Z, axs[0])
@@ -306,7 +287,7 @@ def main():
     plot_samples(Zhat[-1, :], axs[1])
     axs[1].set_title('Variational latent')
 
-    plot_samples(Zhat)
+    # plot_samples(Zhat)
 
     plt.show()
 
