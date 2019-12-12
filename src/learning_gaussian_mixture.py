@@ -38,7 +38,7 @@ def sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples):
         dist = dists[i]
         Sigma = np.diag(Sigma_diags[dist])
         mu = mus[dist]
-        samps[i] = np.random.multivariate_normal(mu, Sigma, size=1)
+        samps[i] = rs.multivariate_normal(mu, Sigma, size=1)
     return samps
 
 
@@ -56,7 +56,7 @@ def get_gmm_samples(n_samples=10000):
     """
     mus = np.array([0, 4]).reshape(-1, 1)
     Sigma_diags = np.array([1, 1]).reshape(-1, 1)
-    probs = np.array([0.4, 0.6])
+    probs = np.array([0.3, 0.7])
     samps = sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples)
     return samps
 
@@ -64,7 +64,7 @@ def get_gmm_samples(n_samples=10000):
 def f_true(Z):
     """Defining a simple affine transformation to transform Z into X.
     """
-    mus = -2 * Z + 3.5
+    mus = 2 * Z + 3.5
     Sigma = np.array([[1]])
     X = np.zeros_like(Z)
     for i in range(Z.shape[0]):
@@ -96,12 +96,10 @@ def sample_from_pz(mu, log_sigma_diag, W, U, b, K, num_samples):
     return Z
 
 
-def gradient_create(hprime, logdet_jac, F, D, X, K, G, N):
+def gradient_create(F, D, X, K, G, N):
     """Create variational objective, gradient, and parameter unpacking function
 
     Arguments:
-        hprime {callable} -- gradient of flow non-linearity
-        logdet_jac {callable} -- log of the determinant of the jacobian
         F {callable} -- Energy function (to be minimized)
         D {int} -- dimension of latent variables
         X {np.ndarray} -- Observed data
@@ -145,7 +143,7 @@ def gradient_create(hprime, logdet_jac, F, D, X, K, G, N):
         mu0, log_sigma_diag0, W, U, b = phi
 
         z0 = rs.randn(N, D) * np.sqrt(np.exp(log_sigma_diag0)) + mu0
-        free_energy = F(z0, X, phi, theta, D, N, K, t)
+        free_energy = F(z0, X, phi, theta, K)
         return -free_energy
 
     gradient = grad(variational_objective)
@@ -178,16 +176,15 @@ def optimize(logp, X, D, G, K, N,
     def logdet_jac(w, z, b):
         return np.outer(w.T, hprime(np.matmul(w, z) + b))
 
-    def m(x):
-        return -1 + np.log(1 + np.exp(x))
-
-    def F(z0, X, phi, theta, D, N, K, t):
+    def F(z0, X, phi, theta, K):
+        eps = 1e-7
         mu0, log_sigma_diag0, W, U, b = phi
-        mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd = theta
+
         zk = z0
         running_sum = 0
         for k in range(K):
-            running_sum += np.log(1 + np.dot(U[k], logdet_jac(W[k], zk.T, b[k])))
+            # Unsure if abs value is necessary
+            running_sum += np.log(eps + np.abs(1 + np.dot(U[k], logdet_jac(W[k], zk.T, b[k]))))
             zk = flows.planar_flow(zk, W[k], U[k], b[k])
 
         first = np.mean(logq0(z0))
@@ -196,18 +193,19 @@ def optimize(logp, X, D, G, K, N,
 
         return first - second - third
 
-    objective, gradient, unpack_params = gradient_create(hprime,
-                                                         logdet_jac,
-                                                         F, D, X, K,
+    objective, gradient, unpack_params = gradient_create(F, D, X, K,
                                                          G, N)
     pbar = tqdm(total=max_iter)
 
     def callback(params, t, g):
         pbar.update()
         if verbose:
-            if t % 1000 == 0:
+            if t % 100 == 0:
                 grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
+                phi, theta = unpack_params(params)
+                print(f"Phi: {phi}")
+                print(f"Theta: {theta}")
 
     # --- Initializing --- #
     # phi
@@ -228,7 +226,7 @@ def optimize(logp, X, D, G, K, N,
     # theta
     init_mu_z = np.zeros((D, G))
     init_log_sigma_z = np.zeros((D, G))
-    init_pi = np.ones(G - 1) * 0.5
+    init_pi = np.ones(G - 1) * 0.6
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood
@@ -254,15 +252,16 @@ def optimize(logp, X, D, G, K, N,
 def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
+    # Maybe reshape these bois
     mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd = theta
     log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_pz, pi)
 
-    mu_x = (np.matmul(A, Z.T).T + B)
+    mu_x = np.matmul(A, Z.T).T + B
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
 
     return log_prob_x + log_prob_z
 
-def run_optimization(X, K, D, G, max_iter=5000, N=10000, step_size=1e-3):
+def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-4):
     return optimize(logp, X, D, G, K, N,
                     max_iter, step_size,
                     verbose=True)
@@ -272,12 +271,14 @@ def main():
     K = 3
     D = 1
     G = 2
-    n_samples = 1000
+    n_samples = 500
 
-    Z = get_gmm_samples()
+    Z = get_gmm_samples(n_samples=n_samples)
     X = f_true(Z)
 
-    phi, theta = run_optimization(X, K, D, G, max_iter=2)
+    phi, theta = run_optimization(X, K, D, G, max_iter=5000, N=n_samples)
+
+    print(f"Variational params: {phi}")
 
     Zhat = sample_from_pz(*phi, K, n_samples)
 
