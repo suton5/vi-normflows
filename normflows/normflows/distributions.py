@@ -52,7 +52,6 @@ def log_mvn(Z, mu, log_sigma_diag):
 
 
 def prob_gm(Z, mu, sigma_diag, pi):
-    print(mu[0][0], mu[1][0])
     G = pi.shape[0] + 1
     prob = 0
     for g in range(G):

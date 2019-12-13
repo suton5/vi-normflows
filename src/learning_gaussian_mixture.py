@@ -188,25 +188,27 @@ def optimize(logp, X, D, G, K, N,
             zk = flows.planar_flow(zk, W[k], U[k], b[k])
 
         first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta))
+        second = np.mean(logp(X, zk, theta)) * 0.1 # Playing with temperature
         third = np.mean(running_sum)
 
         return first - second - third
 
     objective, gradient, unpack_params = gradient_create(F, D, X, K,
                                                          G, N)
-    # pbar = tqdm(total=max_iter)
+    pbar = tqdm(total=max_iter)
 
     def callback(params, t, g):
-        # pbar.update()
+        pbar.update()
         if verbose:
             if t % 100 == 0:
                 grad_mag = np.linalg.norm(gradient(params, t))
-                # tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
+                tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
                 # phi, theta = unpack_params(params)
-                #
                 # mu0, sigma0, W, U, b = phi
                 # mu_z, sigma_z, pi, A, B, sigma_lklhd = theta
+
+                # print(mu_z)
+
                 # print(f'''Phi:
                 # mu_z: {mu_z}
                 # log_sigma_diag_z: {sigma_z}
@@ -260,7 +262,7 @@ def optimize(logp, X, D, G, K, N,
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
 
-    # pbar.close()
+    pbar.close()
 
     return unpack_params(variational_params)
 
@@ -275,9 +277,10 @@ def logp(X, Z, theta):
     mu_x = np.matmul(A, Z.T).T + B
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
 
+
     return log_prob_x + log_prob_z
 
-def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-4):
+def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-3):
     return optimize(logp, X, D, G, K, N,
                     max_iter, step_size,
                     verbose=True)
@@ -292,7 +295,7 @@ def main():
     Z = get_gmm_samples(n_samples=n_samples)
     X = f_true(Z)
 
-    phi, theta = run_optimization(X, K, D, G, max_iter=5000, N=n_samples)
+    phi, theta = run_optimization(X, K, D, G, max_iter=200, N=n_samples)
 
     print(f"Variational params: {phi}")
 
