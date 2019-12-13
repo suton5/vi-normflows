@@ -15,6 +15,13 @@ def trial1(z):
     u = 0.5 * ((norm - 4) / 0.4) ** 2 - np.log(exp1 + exp2)
     return np.exp(-u)
 
+def gmm(z):
+    gauss_uni = lambda x, mu, sigma: 1/np.sqrt(2*np.pi*sigma**2) * np.exp(-0.5*((x-mu)/sigma)**2)
+    pi = np.array([0.5, 0.5])
+    mu = np.array([-1, 1])
+    sigma = np.array([0.5 ,0.5])
+    return pi[0]*gauss_uni(z, mu[0], sigma[0]) + pi[1]*gauss_uni(z, mu[1], sigma[1])
+
 def p1(z):
     z1, z2 = z[:, 0], z[:, 1]
     first = (np.linalg.norm(z, 2, 1) - 2)/0.4
@@ -66,11 +73,11 @@ def gradient_create(target, eps, dim_z, num_samples, K):
 
     return variational_objective, gradient, unpack_params
 
-K = 16
-dim_z = 2
+K = 4
+dim_z = 1
 num_samples = 1000
-num_iter = 45000
-func = p2
+num_iter = 10000
+func = gmm
 
 objective, gradient, unpack_params = gradient_create(func, 1e-7, dim_z, num_samples, K)
 
@@ -90,7 +97,7 @@ def callback(params, t, g):
             z_prev = z_prev + np.outer(h(np.matmul(z_prev, w) + b), u_hat)
         z_K = z_prev
         plt.figure(figsize=(5,4))
-        plt.scatter(z_K[:,0], z_K[:,1])
+        plt.hist(z_K, 100, density=True)
         plt.show()
 
 
@@ -99,7 +106,7 @@ init_U = 1*np.ones((K, dim_z))
 init_b = 1*np.ones((K))
 init_params = np.concatenate((init_W.flatten(), init_U.flatten(), init_b.flatten()))
 
-variational_params = adam(gradient, init_params, callback, num_iter, 1e-4)
+variational_params = sgd(gradient, init_params, callback, num_iter, 5e-4)
 
 
 W, U, B = unpack_params(variational_params)
@@ -115,15 +122,24 @@ plt.figure(figsize=(10,8))
 plt.plot(objectives)
 plt.show()
 
-fig,ax=plt.subplots(1,1,figsize = (10,8))
-nbins = 100
-x, y = z0[:, 0], z0[:, 1]
-xi, yi = numpy.mgrid[-4:4:nbins*1j, -4:4:nbins*1j]
-zi = np.array([func(np.vstack([xi.flatten(), yi.flatten()])[:,i].reshape(-1,2)) for i in range(nbins**2)])
-ax.pcolormesh(xi, yi, zi.reshape(xi.shape))
-ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap=plt.cm.Reds_r)
-plt.scatter(z_K[:,0], z_K[:,1], alpha=0.2)
-plt.xlim([-4, 4])
-plt.ylim([-4, 4])
-plt.savefig('results/'+func.__name__+'/'+func.__name__+'_'+str(K)+'_'+str(num_iter)+'.png')
-#plt.show()
+# fig,ax=plt.subplots(1,1,figsize = (10,8))
+# nbins = 100
+# x, y = z0[:, 0], z0[:, 1]
+# xi, yi = numpy.mgrid[-4:4:nbins*1j, -4:4:nbins*1j]
+# zi = np.array([func(np.vstack([xi.flatten(), yi.flatten()])[:,i].reshape(-1,2)) for i in range(nbins**2)])
+# ax.pcolormesh(xi, yi, zi.reshape(xi.shape))
+# ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap=plt.cm.Reds_r)
+# plt.scatter(z_K[:,0], z_K[:,1], alpha=0.2)
+# plt.xlim([-4, 4])
+# plt.ylim([-4, 4])
+# # plt.savefig('results/'+func.__name__+'/'+func.__name__+'_'+str(K)+'_'+str(num_iter)+'.png')
+# plt.show()
+
+plt.figure(figsize=(10,8))
+samples = np.linspace(-3, 3, 601)
+z = np.array([gmm(samples[i]) for i in range(samples.shape[0])])
+idx = np.argsort(samples)
+plt.plot(samples[idx], z[idx], label='p')
+plt.hist(z_K, 100, label='q', density=True)
+plt.legend()
+plt.show()
