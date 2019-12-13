@@ -52,6 +52,7 @@ def log_mvn(Z, mu, log_sigma_diag):
 
 
 def prob_gm(Z, mu, sigma_diag, pi):
+    print(mu[0][0], mu[1][0])
     G = pi.shape[0] + 1
     prob = 0
     for g in range(G):
@@ -59,8 +60,7 @@ def prob_gm(Z, mu, sigma_diag, pi):
             pi_g = 1 - np.sum(pi)
         else:
             pi_g = pi[g]
-        prob_i = mvn(Z, mu[g], sigma_diag[g]) * pi_g
-        prob += prob_i
+        prob += mvn(Z, mu[g], sigma_diag[g]) * pi_g
     return prob
 
 
@@ -70,4 +70,6 @@ def log_prob_gm(Z, mu, log_sigma_diag, pi):
     assert mu.shape[0] == pi.shape[0] + 1, f'Number of means does not match number of components'
     assert Z.shape[1] == mu.shape[1], f'Dimensions of random variable and mean vector not aligned'
 
-    return np.log(prob_gm(Z, mu, np.exp(log_sigma_diag), pi))
+    sigma_diag = np.exp(log_sigma_diag)
+    prob = prob_gm(Z, mu, sigma_diag, pi)
+    return np.log(prob)

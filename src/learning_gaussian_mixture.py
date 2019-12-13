@@ -54,7 +54,7 @@ def plot_samples(Z, ax):
 def get_gmm_samples(n_samples=10000):
     """Simple GMM with two modes
     """
-    mus = np.array([0, 4]).reshape(-1, 1)
+    mus = np.array([-1, 4]).reshape(-1, 1)
     Sigma_diags = np.array([1, 1]).reshape(-1, 1)
     probs = np.array([0.3, 0.7])
     samps = sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples)
@@ -195,17 +195,33 @@ def optimize(logp, X, D, G, K, N,
 
     objective, gradient, unpack_params = gradient_create(F, D, X, K,
                                                          G, N)
-    pbar = tqdm(total=max_iter)
+    # pbar = tqdm(total=max_iter)
 
     def callback(params, t, g):
-        pbar.update()
+        # pbar.update()
         if verbose:
             if t % 100 == 0:
                 grad_mag = np.linalg.norm(gradient(params, t))
-                tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
-                phi, theta = unpack_params(params)
-                print(f"Phi: {phi}")
-                print(f"Theta: {theta}")
+                # tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
+                # phi, theta = unpack_params(params)
+                #
+                # mu0, sigma0, W, U, b = phi
+                # mu_z, sigma_z, pi, A, B, sigma_lklhd = theta
+                # print(f'''Phi:
+                # mu_z: {mu_z}
+                # log_sigma_diag_z: {sigma_z}
+                # pi: {pi}
+                # A: {A}
+                # B: {B}
+                # log_sigma_diag_lkld: {sigma_lklhd}
+                # ''')
+                # print(f'''Theta:
+                # mu0: {mu0}
+                # log_sigma_diag0: {sigma0}
+                # W: {W}
+                # U: {U}
+                # b: {b}
+                # ''')
 
     # --- Initializing --- #
     # phi
@@ -224,7 +240,7 @@ def optimize(logp, X, D, G, K, N,
         ])
 
     # theta
-    init_mu_z = np.zeros((D, G))
+    init_mu_z = np.array([[0], [2]])
     init_log_sigma_z = np.zeros((D, G))
     init_pi = np.ones(G - 1) * 0.6
     init_A = np.eye(D)
@@ -244,7 +260,7 @@ def optimize(logp, X, D, G, K, N,
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
 
-    pbar.close()
+    # pbar.close()
 
     return unpack_params(variational_params)
 
@@ -253,8 +269,8 @@ def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
     # Maybe reshape these bois
-    mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd = theta
-    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_pz, pi)
+    mu_z, log_sigma_diag_z, pi, A, B, log_sigma_diag_lklhd = theta
+    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_z, pi)
 
     mu_x = np.matmul(A, Z.T).T + B
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
