@@ -131,12 +131,12 @@ def gradient_create(F, D, X, K, G, N):
     def unpack_theta(theta):
         mu_z = theta[:D * G].reshape(G, D)
         log_sigma_diag_pz = theta[D * G: 2 * D * G].reshape(G, D)
-        pi = theta[2 * D * G:2 * D * G + G - 1]
+        logit_pi = theta[2 * D * G:2 * D * G + G - 1]
         A = theta[-(D ** 2 + 2 * D):-2 * D].reshape(D, D)
         B = theta[-2 * D:-D]
         log_sigma_diag_lklhd = theta[-D:]
 
-        return mu_z, log_sigma_diag_pz, pi, A, B, log_sigma_diag_lklhd
+        return mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd
 
     def variational_objective(params, t):
         phi, theta = unpack_params(params)
@@ -151,9 +151,7 @@ def gradient_create(F, D, X, K, G, N):
     return variational_objective, gradient, unpack_params
 
 
-def optimize(logp, X, D, G, K, N,
-             max_iter, step_size,
-             verbose=True):
+def optimize(logp, X, D, G, K, N, max_iter, step_size, verbose=True):
     """Run the optimization for a mixture of Gaussians
 
     Arguments:
@@ -180,7 +178,7 @@ def optimize(logp, X, D, G, K, N,
         eps = 1e-7
         mu0, log_sigma_diag0, W, U, b = phi
 
-        zk = z0
+        zk = np.matmul((z0 + mu0), np.sqrt(np.exp(log_sigma_diag0).reshape(D, D)))
         running_sum = 0
         for k in range(K):
             # Unsure if abs value is necessary
@@ -188,42 +186,23 @@ def optimize(logp, X, D, G, K, N,
             zk = flows.planar_flow(zk, W[k], U[k], b[k])
 
         first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta)) * 0.1 # Playing with temperature
+        second = np.mean(logp(X, zk, theta)) # Playing with temperature
         third = np.mean(running_sum)
 
         return first - second - third
 
-    objective, gradient, unpack_params = gradient_create(F, D, X, K,
-                                                         G, N)
+    objective, gradient, unpack_params = gradient_create(F, D, X, K, G, N)
     pbar = tqdm(total=max_iter)
+
+    param_trace = []
 
     def callback(params, t, g):
         pbar.update()
+        param_trace.append(params)
         if verbose:
             if t % 100 == 0:
                 grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
-                # phi, theta = unpack_params(params)
-                # mu0, sigma0, W, U, b = phi
-                # mu_z, sigma_z, pi, A, B, sigma_lklhd = theta
-
-                # print(mu_z)
-
-                # print(f'''Phi:
-                # mu_z: {mu_z}
-                # log_sigma_diag_z: {sigma_z}
-                # pi: {pi}
-                # A: {A}
-                # B: {B}
-                # log_sigma_diag_lkld: {sigma_lklhd}
-                # ''')
-                # print(f'''Theta:
-                # mu0: {mu0}
-                # log_sigma_diag0: {sigma0}
-                # W: {W}
-                # U: {U}
-                # b: {b}
-                # ''')
 
     # --- Initializing --- #
     # phi
@@ -242,9 +221,9 @@ def optimize(logp, X, D, G, K, N,
         ])
 
     # theta
-    init_mu_z = np.array([[0], [2]])
-    init_log_sigma_z = np.zeros((D, G))
-    init_pi = np.ones(G - 1) * 0.6
+    init_mu_z = np.zeros((G, D))
+    init_log_sigma_z = np.zeros((G, D))
+    init_logit_pi = np.log(np.ones(G - 1) * 0.4)
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood
@@ -252,7 +231,7 @@ def optimize(logp, X, D, G, K, N,
     init_theta = np.concatenate([
             init_mu_z.flatten(),
             init_log_sigma_z.flatten(),
-            init_pi,
+            init_logit_pi,
             init_A.flatten(),
             init_B,
             init_log_sigma_lklhd
@@ -261,9 +240,9 @@ def optimize(logp, X, D, G, K, N,
     init_params = np.concatenate((init_phi, init_theta))
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
-
     pbar.close()
 
+    param_trace = np.vstack(param_trace).T
     return unpack_params(variational_params)
 
 
@@ -271,8 +250,8 @@ def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
     # Maybe reshape these bois
-    mu_z, log_sigma_diag_z, pi, A, B, log_sigma_diag_lklhd = theta
-    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_z, pi)
+    mu_z, log_sigma_diag_z, logit_pi, A, B, log_sigma_diag_lklhd = theta
+    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_z, logit_pi)
 
     mu_x = np.matmul(A, Z.T).T + B
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
@@ -280,14 +259,14 @@ def logp(X, Z, theta):
 
     return log_prob_x + log_prob_z
 
-def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-3):
+def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-4):
     return optimize(logp, X, D, G, K, N,
                     max_iter, step_size,
                     verbose=True)
 
 
 def main():
-    K = 3
+    K = 1
     D = 1
     G = 2
     n_samples = 500
@@ -295,19 +274,27 @@ def main():
     Z = get_gmm_samples(n_samples=n_samples)
     X = f_true(Z)
 
-    phi, theta = run_optimization(X, K, D, G, max_iter=200, N=n_samples)
+    phi, theta = run_optimization(X, K, D, G, max_iter=800, N=n_samples, step_size=1e-3)
 
     print(f"Variational params: {phi}")
+    print(f"Generative params: {theta}")
 
     Zhat = sample_from_pz(*phi, K, n_samples)
 
-    fig, axs = plt.subplots(ncols=2)
-    plot_samples(Z, axs[0])
-    axs[0].set_title('Latent')
-    plot_samples(Zhat[-1, :], axs[1])
-    axs[1].set_title('Variational latent')
+    fig, axs = plt.subplots(ncols=2, nrows=2, sharex=True)
+    plot_samples(Z, axs[0, 0])
+    axs[0, 0].set_title('Latent')
+    plot_samples(Zhat[-1, :], axs[1, 0])
+    axs[1, 0].set_title('Variational latent')
 
-    # plot_samples(Zhat)
+    #TODO: Plot Xhat
+    mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
+    Xhat = f_pred(Zhat[-1, :], A, B)
+
+    plot_samples(X, axs[0, 1])
+    axs[0, 1].set_title('Observed')
+    plot_samples(Xhat, axs[1, 1])
+    axs[1, 1].set_title("Variational observed")
 
     plt.show()
 

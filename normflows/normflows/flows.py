@@ -49,7 +49,7 @@ def planar_flow(z: np.ndarray,
 
 
 def _get_uhat(u, w):
-    return u + (m(np.dot(w, u)) - np.dot(w, u)) * (w/(np.linalg.norm(w)**2))#np.divide(w, np.dot(w, w))
+    return u + (m(np.dot(w, u)) - np.dot(w, u)) * (w / (np.linalg.norm(w) ** 2))
 
 
 def m(x):
