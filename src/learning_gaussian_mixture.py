@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
-from normflows import flows, distributions
+from normflows import flows, distributions, transformations, optimization
 
 
 rs = npr.RandomState(0)
@@ -96,29 +96,17 @@ def sample_from_pz(mu, log_sigma_diag, W, U, b, K, num_samples):
     return Z
 
 
-def gradient_create(F, D, X, K, G, N):
+def make_unpack_params(D, K, G):
     """Create variational objective, gradient, and parameter unpacking function
 
     Arguments:
-        F {callable} -- Energy function (to be minimized)
         D {int} -- dimension of latent variables
-        X {np.ndarray} -- Observed data
         K {int} -- number of flows
         G {int} -- Number of groups in the gaussian mixture
-        N {int} -- Number of samples to draw
 
     Returns
-        'variational_objective', 'gradient', 'unpack_params'
+        'unpack_params'
     """
-    def unpack_params(params):
-        phi = params[:2 * D * (1 + K) + K]
-        theta = params[2 * D * (1 + K) + K:]
-
-        phi = unpack_phi(phi)
-        theta = unpack_theta(theta)
-
-        return phi, theta
-
     def unpack_phi(phi):
         mu0 = phi[:D]
         log_sigma_diag0 = phi[D:2 * D]
@@ -138,72 +126,18 @@ def gradient_create(F, D, X, K, G, N):
 
         return mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd
 
-    def variational_objective(params, t):
-        phi, theta = unpack_params(params)
-        mu0, log_sigma_diag0, W, U, b = phi
+    def unpack_params(params):
+        phi = params[:2 * D * (1 + K) + K]
+        theta = params[2 * D * (1 + K) + K:]
 
-        z0 = rs.randn(N, D) * np.sqrt(np.exp(log_sigma_diag0)) + mu0
-        free_energy = F(z0, X, phi, theta, K)
-        return -free_energy
+        phi = unpack_phi(phi)
+        theta = unpack_theta(theta)
 
-    gradient = grad(variational_objective)
+        return phi, theta
 
-    return variational_objective, gradient, unpack_params
+    return unpack_params
 
-
-def optimize(logp, X, D, G, K, N, max_iter, step_size, verbose=True):
-    """Run the optimization for a mixture of Gaussians
-
-    Arguments:
-        logp {callable} -- Joint log-density of Z and X
-        D {int} -- Dimension of Z
-        G {int} -- Number of Gaussians in GMM
-        N {int} -- Number of samples to draw
-        K {int} -- Number of flows
-        max_iter {int} -- Maximum iterations of optimization
-        step_size {float} -- Learning rate for optimizer
-    """
-    def logq0(z):
-        """Just a standard Gaussian
-        """
-        return -D / 2 * np.log(2 * np.pi) - 0.5 * np.sum(z ** 2, axis=0)
-
-    def hprime(x):
-        return 1 - np.tanh(x) ** 2
-
-    def logdet_jac(w, z, b):
-        return np.outer(w.T, hprime(np.matmul(w, z) + b))
-
-    def F(z0, X, phi, theta, K):
-        eps = 1e-7
-        mu0, log_sigma_diag0, W, U, b = phi
-
-        zk = np.matmul((z0 + mu0), np.sqrt(np.exp(log_sigma_diag0).reshape(D, D)))
-        running_sum = 0
-        for k in range(K):
-            # Unsure if abs value is necessary
-            running_sum += np.log(eps + np.abs(1 + np.dot(U[k], logdet_jac(W[k], zk.T, b[k]))))
-            zk = flows.planar_flow(zk, W[k], U[k], b[k])
-
-        first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta)) # Playing with temperature
-        third = np.mean(running_sum)
-
-        return first - second - third
-
-    objective, gradient, unpack_params = gradient_create(F, D, X, K, G, N)
-    pbar = tqdm(total=max_iter)
-
-    param_trace = []
-
-    def callback(params, t, g):
-        pbar.update()
-        param_trace.append(params)
-        if verbose:
-            if t % 100 == 0:
-                grad_mag = np.linalg.norm(gradient(params, t))
-                tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
-
+def get_init_params(D, K, G):
     # --- Initializing --- #
     # phi
     init_mu0 = np.zeros(D)
@@ -223,7 +157,7 @@ def optimize(logp, X, D, G, K, N, max_iter, step_size, verbose=True):
     # theta
     init_mu_z = np.zeros((G, D))
     init_log_sigma_z = np.zeros((G, D))
-    init_logit_pi = np.log(np.ones(G - 1) * 0.4)
+    init_logit_pi = transformations.logit(np.ones(G - 1) * 0.4)
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood
@@ -239,11 +173,7 @@ def optimize(logp, X, D, G, K, N, max_iter, step_size, verbose=True):
 
     init_params = np.concatenate((init_phi, init_theta))
 
-    variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
-    pbar.close()
-
-    param_trace = np.vstack(param_trace).T
-    return unpack_params(variational_params)
+    return init_params
 
 
 def logp(X, Z, theta):
@@ -259,10 +189,11 @@ def logp(X, Z, theta):
 
     return log_prob_x + log_prob_z
 
-def run_optimization(X, K, D, G, max_iter=5000, N=1000, step_size=1e-4):
-    return optimize(logp, X, D, G, K, N,
-                    max_iter, step_size,
-                    verbose=True)
+
+def run_optimization(X, K, D, G, init_params, unpack_params, max_iter=5000, N=1000, step_size=1e-4):
+    return optimization.optimize(logp, X, D, G, K, N,
+                                 init_params, unpack_params, max_iter, step_size,
+                                 verbose=True)
 
 
 def main():
@@ -274,7 +205,9 @@ def main():
     Z = get_gmm_samples(n_samples=n_samples)
     X = f_true(Z)
 
-    phi, theta = run_optimization(X, K, D, G, max_iter=800, N=n_samples, step_size=1e-3)
+    unpack_params = make_unpack_params(D, K, G)
+    init_params = get_init_params(D, K, G)
+    phi, theta = run_optimization(X, K, D, G, init_params, unpack_params, max_iter=10000, N=n_samples, step_size=1e-4)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
