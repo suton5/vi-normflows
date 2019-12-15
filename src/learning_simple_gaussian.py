@@ -181,7 +181,8 @@ def main():
 
     unpack_params = make_unpack_params(D, K)
     init_params = get_init_params(D, K)
-    phi, theta = run_optimization(X, K, D, init_params, unpack_params, max_iter=10000, N=n_samples, step_size=1e-3)
+    phi, theta = run_optimization(X, K, D, init_params, unpack_params,
+                                  max_iter=10000, N=n_samples, step_size=1e-4)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")

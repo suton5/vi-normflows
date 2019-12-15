@@ -3,7 +3,7 @@ from tqdm import tqdm
 from autograd import numpy as np
 from autograd.numpy import random as npr
 from autograd import grad
-from autograd.misc.optimizers import adam
+from autograd.misc.optimizers import adam, rmsprop
 
 from normflows import transformations, flows
 
@@ -62,16 +62,21 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
 
     def F(z0, phi, theta, K):
         eps = 1e-7
-        mu0, log_sigma_diag0, W, U, b = phi
+        mu0, log_sigma_diag0, W, U, B = phi
 
         zk = z0 * np.sqrt(np.exp(log_sigma_diag0)) + mu0
         first = np.mean(logq0(zk))
 
-        running_sum = 0
+        running_sum = 0.
         for k in range(K):
-            # Unsure if abs value is necessary
-            running_sum += np.log(eps + np.abs(1 + np.dot(U[k], logdet_jac(W[k], zk.T, b[k]))))
-            zk = flows.planar_flow(zk, W[k], U[k], b[k])
+            w, u, b = W[k], U[k], [k]
+            # u_hat = -1 + np.log(1 + np.exp((np.dot(w, u) - np.dot(w, u)) * (w / np.linalg.norm(w)))) + u
+            # affine = np.outer(hprime(np.matmul(zk, w) + b), w)
+            # running_sum += np.log(eps + np.abs(1 + np.matmul(affine, u)))
+            # zk = zk + np.outer(np.tanh(np.matmul(zk, w) + b), u_hat)
+
+            running_sum += np.log(eps + np.abs(1 + np.dot(u, logdet_jac(w, zk.T, b))))
+            zk = flows.planar_flow(zk, w, u, b)
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         second = np.mean(logp(X, zk, theta))  # Play with temperature
@@ -94,7 +99,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
                 tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
                 # tqdm.write(f"Gradient: {grad_t}")
 
-    variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
+    variational_params = rmsprop(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
     pbar.close()
 
     param_trace = np.vstack(param_trace).T

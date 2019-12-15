@@ -49,7 +49,7 @@ def plot_samples(Z, ax):
 def get_gmm_samples(n_samples=10000):
     """Simple GMM with two modes
     """
-    mus = np.array([-1, 4]).reshape(-1, 1)
+    mus = np.array([2, 5]).reshape(-1, 1)
     Sigma_diags = np.array([1, 1]).reshape(-1, 1)
     probs = np.array([0.3, 0.7])
     samps = sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples)
@@ -203,7 +203,7 @@ def main():
     unpack_params = make_unpack_params(D, K, G)
     init_params = get_init_params(D, K, G)
     phi, theta = run_optimization(X, K, D, init_params, unpack_params,
-                                  max_iter=10000, N=n_samples, step_size=1e-4)
+                                  max_iter=5000, N=n_samples, step_size=5e-4)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
