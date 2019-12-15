@@ -124,7 +124,7 @@ def get_init_params(D, K, G):
     # --- Initializing --- #
     # phi
     init_mu0 = np.zeros(D)
-    init_log_sigma0 = np.ones(D) * 2
+    init_log_sigma0 = np.ones(D) * 0
     init_W = np.ones((K, D)) * 1
     init_U = np.ones((K, D)) * 2
     init_b = np.ones(K) * -1
@@ -138,9 +138,9 @@ def get_init_params(D, K, G):
         ])
 
     # theta
-    init_mu_z = np.ones((G, D)) * 10
-    init_log_sigma_z = np.ones((G, D))
-    init_logit_pi = np.log(np.array([0.7]))
+    init_mu_z = np.ones((G, D))
+    init_log_sigma_z = np.ones((G, D)) * 0
+    init_logit_pi = transformations.logit(np.array([0.5]))
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood

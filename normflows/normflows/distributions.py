@@ -65,13 +65,13 @@ def prob_gm(Z, mu, sigma_diag, pi):
     return prob
 
 
-def log_prob_gm(Z, mu, log_sigma_diag, log_pi):
+def log_prob_gm(Z, mu, log_sigma_diag, logit_pi):
     # assert np.sum(pi) < 1, f'probabilities of GMM do not sum to less than 1 ({np.sum(pi)})'
     # assert np.all(pi >= 0), f'Probabilities of GMM cannot be negative'
     #TODO: Constrain this!
-    pi = np.exp(log_pi)
-    if np.sum(pi) > 1:
-        pi /= np.sum(pi)
+    pi = sigmoid(logit_pi)
+    # if np.sum(pi) > 1:
+    #     pi /= np.sum(pi)
     assert mu.shape[0] == pi.shape[0] + 1, f'Number of means does not match number of components'
     assert Z.shape[1] == mu.shape[1], f'Dimensions of random variable and mean vector not aligned'
 

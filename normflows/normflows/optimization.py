@@ -66,7 +66,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     def F(z0, phi, theta, K, t):
         eps = 1e-7
         mu0, log_sigma_diag0, W, U, B = phi
-        beta_t = np.min(np.array([1, 0.001 + t / 10000]))
+        beta_t = np.min(np.array([1, 0.001 + t / 5000]))
 
         sd = np.sqrt(np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
