@@ -11,6 +11,12 @@ from normflows import flows, distributions, transformations, optimization
 rs = npr.RandomState(0)
 
 
+# True GMM Parameters
+mus = np.array([0, 4]).reshape(-1, 1)
+Sigma_diags = np.array([1, 1]).reshape(-1, 1)
+probs = np.array([0.3, 0.7])
+
+
 def sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples):
     """Sample `n_samples` points from a Gaussian mixture model.
 
@@ -49,9 +55,9 @@ def plot_samples(Z, ax):
 def get_gmm_samples(n_samples=10000):
     """Simple GMM with two modes
     """
-    mus = np.array([2, 6]).reshape(-1, 1)
-    Sigma_diags = np.array([1, 1]).reshape(-1, 1)
-    probs = np.array([0.3, 0.7])
+    # mus = np.array([2, 6]).reshape(-1, 1)
+    # Sigma_diags = np.array([1, 1]).reshape(-1, 1)
+    # probs = np.array([0.3, 0.7])
     samps = sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples)
     return samps
 
@@ -112,14 +118,15 @@ def make_unpack_params(D, K, G):
         return mu0, log_sigma_diag0, W, U, b
 
     def unpack_theta(theta):
-        mu_z = theta[:D * G].reshape(G, D)
-        log_sigma_diag_pz = theta[D * G: 2 * D * G].reshape(G, D)
-        logit_pi = theta[2 * D * G:2 * D * G + G - 1]
+        # mu_z = theta[:D * G].reshape(G, D)
+        # log_sigma_diag_pz = theta[D * G: 2 * D * G].reshape(G, D)
+        # logit_pi = theta[2 * D * G:2 * D * G + G - 1]
         A = theta[-(D ** 2 + 2 * D):-2 * D].reshape(D, D)
         B = theta[-2 * D:-D]
         log_sigma_diag_lklhd = theta[-D:]
 
-        return mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd
+        # return mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd
+        return A, B, log_sigma_diag_lklhd
 
     def unpack_params(params):
         phi = params[:2 * D * (1 + K) + K]
@@ -150,17 +157,17 @@ def get_init_params(D, K, G):
         ])
 
     # theta
-    init_mu_z = np.ones((G, D)) * 10
-    init_log_sigma_z = np.ones((G, D))
-    init_logit_pi = np.log(np.array([0.7]))
+    # init_mu_z = np.ones((G, D)) * 10
+    # init_log_sigma_z = np.ones((G, D))
+    # init_logit_pi = np.log(np.array([0.7]))
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood
 
     init_theta = np.concatenate([
-            init_mu_z.flatten(),
-            init_log_sigma_z.flatten(),
-            init_logit_pi,
+            # init_mu_z.flatten(),
+            # init_log_sigma_z.flatten(),
+            # init_logit_pi,
             init_A.flatten(),
             init_B,
             init_log_sigma_lklhd
@@ -175,8 +182,8 @@ def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
     # Maybe reshape these bois
-    mu_z, log_sigma_diag_z, logit_pi, A, B, log_sigma_diag_lklhd = theta
-    log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_z, logit_pi)
+    A, B, log_sigma_diag_lklhd = theta
+    log_prob_z = distributions.log_prob_gm(Z, mus, np.log(Sigma_diags), np.log(probs[:-1]))
 
     mu_x = np.matmul(A, Z.T).T + B
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
@@ -203,7 +210,7 @@ def main():
     unpack_params = make_unpack_params(D, K, G)
     init_params = get_init_params(D, K, G)
     phi, theta = run_optimization(X, K, D, init_params, unpack_params,
-                                  max_iter=5000, N=n_samples, step_size=1e-4)
+                                  max_iter=20000, N=n_samples, step_size=1e-4)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
@@ -216,7 +223,8 @@ def main():
     plot_samples(Zhat[-1, :], axs[1, 0])
     axs[1, 0].set_title('Variational latent')
 
-    mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
+    # mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
+    A, B, log_sigma_diag_lklhd = theta
     Xhat = f_pred(Zhat[-1, :], A, B)
 
     plot_samples(X, axs[0, 1])

@@ -64,8 +64,8 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
         eps = 1e-7
         mu0, log_sigma_diag0, W, U, B = phi
 
-        zk = z0 * np.sqrt(np.exp(log_sigma_diag0)) + mu0
-        first = np.mean(logq0(zk))
+        sd = np.sqrt(np.exp(log_sigma_diag0))
+        zk = z0 * sd + mu0
 
         running_sum = 0.
         for k in range(K):
@@ -79,6 +79,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
             zk = flows.planar_flow(zk, w, u, b)
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
+        first = np.mean(logq0(z0))
         second = np.mean(logp(X, zk, theta))  # Play with temperature
         third = np.mean(running_sum)
 
@@ -96,7 +97,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
             if t % 100 == 0:
                 grad_t = gradient(params, t)
                 grad_mag = np.linalg.norm(grad_t)
-                tqdm.write(f"Iteration {t}; gradient mag: {grad_mag:.3f}")
+                tqdm.write(f"Iteration {t}; objective: {objective(params, t)} gradient mag: {grad_mag:.3f}")
                 # tqdm.write(f"Gradient: {grad_t}")
 
     variational_params = rmsprop(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
