@@ -4,8 +4,11 @@ from autograd import numpy as np
 from autograd.numpy import random as npr
 from autograd import grad
 from autograd.misc.optimizers import adam, rmsprop
+import matplotlib.pyplot as plt
 
-from normflows import transformations, flows
+from normflows import flows
+from .distributions import sample_from_pz
+from .plotting import plot_samples
 
 
 rs = npr.RandomState(0)
@@ -28,7 +31,7 @@ def gradient_create(F, D, K, N, unpack_params):
     def variational_objective(params, t):
         phi, theta = unpack_params(params)
         z0 = rs.randn(N, D)  # Gaussian noise here. Will add back in mu and sigma in F
-        free_energy = F(z0, phi, theta, K)
+        free_energy = F(z0, phi, theta, K, t)
         return free_energy
 
     gradient = grad(variational_objective)
@@ -60,16 +63,17 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     def logdet_jac(w, z, b):
         return np.outer(w.T, hprime(np.matmul(w, z) + b))
 
-    def F(z0, phi, theta, K):
+    def F(z0, phi, theta, K, t):
         eps = 1e-7
         mu0, log_sigma_diag0, W, U, B = phi
+        beta_t = np.min(np.array([1, 0.001 + t / 10000]))
 
         sd = np.sqrt(np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
 
         running_sum = 0.
         for k in range(K):
-            w, u, b = W[k], U[k], [k]
+            w, u, b = W[k], U[k], B[k]
             # u_hat = -1 + np.log(1 + np.exp((np.dot(w, u) - np.dot(w, u)) * (w / np.linalg.norm(w)))) + u
             # affine = np.outer(hprime(np.matmul(zk, w) + b), w)
             # running_sum += np.log(eps + np.abs(1 + np.matmul(affine, u)))
@@ -80,7 +84,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta))  # Play with temperature
+        second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 
         return first - second - third

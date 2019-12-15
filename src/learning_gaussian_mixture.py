@@ -78,19 +78,6 @@ def f_pred(Z, slope, intercept):
     return X
 
 
-def sample_from_pz(mu, log_sigma_diag, W, U, b, K, num_samples):
-    Sigma = np.diag(np.exp(log_sigma_diag))
-    dim_z = len(mu)
-
-    Z = np.zeros((K + 1, num_samples, dim_z))
-    z = rs.multivariate_normal(mu, Sigma, num_samples)
-
-    Z[0] = z
-    for k in range(K):
-        Z[k + 1] = flows.planar_flow(z, W[k], U[k], b[k])
-    return Z
-
-
 def make_unpack_params(D, K, G):
     """Create variational objective, gradient, and parameter unpacking function
 
@@ -139,8 +126,8 @@ def get_init_params(D, K, G):
     init_mu0 = np.zeros(D)
     init_log_sigma0 = np.ones(D) * 2
     init_W = np.ones((K, D)) * 1
-    init_U = np.ones((K, D)) * 1
-    init_b = np.zeros(K)
+    init_U = np.ones((K, D)) * 2
+    init_b = np.ones(K) * -1
 
     init_phi = np.concatenate([
             init_mu0,
@@ -194,7 +181,7 @@ def run_optimization(X, K, D, init_params, unpack_params, max_iter=5000, N=1000,
 
 
 def main():
-    K = 2
+    K = 4
     D = 1
     G = 2
     n_samples = 500
@@ -205,12 +192,12 @@ def main():
     unpack_params = make_unpack_params(D, K, G)
     init_params = get_init_params(D, K, G)
     phi, theta = run_optimization(X, K, D, init_params, unpack_params,
-                                  max_iter=2000, N=n_samples, step_size=1e-3)
+                                  max_iter=20000, N=n_samples, step_size=1e-4)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
 
-    Zhat = sample_from_pz(*phi, K, n_samples)
+    Zhat = distributions.sample_from_pz(*phi, K, n_samples)
 
     fig, axs = plt.subplots(ncols=2, nrows=2, sharex=True)
     plot_samples(Z, axs[0, 0])
