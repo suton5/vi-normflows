@@ -84,6 +84,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
+        # second = np.mean(logp(X, zk, theta))
         second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 

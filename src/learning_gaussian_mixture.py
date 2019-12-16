@@ -123,11 +123,11 @@ def make_unpack_params(D, K, G):
 def get_init_params(D, K, G):
     # --- Initializing --- #
     # phi
-    init_mu0 = np.zeros(D)
+    init_mu0 = np.ones(D) * 1
     init_log_sigma0 = np.ones(D) * 0
     init_W = np.ones((K, D)) * 1
-    init_U = np.ones((K, D)) * 2
-    init_b = np.ones(K) * -1
+    init_U = np.ones((K, D)) * 1
+    init_b = np.ones(K) * 0
 
     init_phi = np.concatenate([
             init_mu0,
@@ -138,8 +138,8 @@ def get_init_params(D, K, G):
         ])
 
     # theta
-    init_mu_z = np.ones((G, D))
-    init_log_sigma_z = np.ones((G, D)) * 0
+    init_mu_z = np.ones((G, D)) * 1
+    init_log_sigma_z = np.ones((G, D)) * 1
     init_logit_pi = transformations.logit(np.array([0.5]))
     init_A = np.eye(D)
     init_B = np.zeros(D)
@@ -218,4 +218,5 @@ def main():
 
 
 if __name__ == '__main__':
+    #TODO: Go back to log pi instead of logit pi.
     main()
