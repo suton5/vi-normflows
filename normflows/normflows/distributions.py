@@ -61,7 +61,7 @@ def prob_gm(Z, mu, sigma_diag, pi):
             pi_g = 1 - np.sum(pi)
         else:
             pi_g = pi[g]
-        prob += mvn(Z, mu[g], sigma_diag[g]) * pi_g
+        prob = prob + mvn(Z, mu[g], sigma_diag[g]) * pi_g
     return prob
 
 

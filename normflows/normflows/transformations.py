@@ -12,4 +12,4 @@ def logit(x):
 def affine(Z, slope, intercept):
     """Predicting observed variables given the latent variables.
     """
-    return slope * Z + intercept
+    return np.matmul(slope, Z.T).T + intercept

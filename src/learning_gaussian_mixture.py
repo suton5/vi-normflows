@@ -27,7 +27,6 @@ def make_samples_z(X, weights, W, U, b, K, D, N):
     """
     q0_params = nn.forward(weights, X.T).reshape(N, -1)
     mu, log_sigma_diag = q0_params[:, :D], q0_params[:, D:]
-    print(mu.shape, log_sigma_diag.shape)
     return distributions.sample_from_pz(mu, log_sigma_diag, W, U, b, K)
 
 
@@ -69,9 +68,9 @@ def plot_samples(Z, ax):
 def get_gmm_samples(n_samples=10000):
     """Simple GMM with two modes
     """
-    mus = np.array([2, 6]).reshape(-1, 1)
+    mus = np.array([2, 7]).reshape(-1, 1)
     Sigma_diags = np.array([1, 1]).reshape(-1, 1)
-    probs = np.array([0.3, 0.7])
+    probs = np.array([0.7, 0.3])
     samps = sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples)
     return samps
 
@@ -189,7 +188,7 @@ def logp(X, Z, theta):
     # A, B, log_sigma_diag_lklhd = theta
     log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_pz, logit_pi)
 
-    mu_x = np.matmul(A, Z.T).T + B
+    mu_x = transformations.affine(Z, A, B)
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
 
 
@@ -214,22 +213,24 @@ def main():
     unpack_params = make_unpack_params(D, K, G)
     init_params = get_init_params(D, K, G)
     phi, theta = run_optimization(X, K, D, init_params, unpack_params,
-                                  max_iter=20000, N=n_samples, step_size=1e-4)
+                                  max_iter=2000, N=n_samples, step_size=5e-3)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
 
     Zhat = make_samples_z(X, *phi, K, D, n_samples)
+    print(Zhat.shape)
+    ZK = Zhat[K, :, :]
 
     fig, axs = plt.subplots(ncols=2, nrows=2, sharex=True)
     plot_samples(Z, axs[0, 0])
     axs[0, 0].set_title('Latent')
-    plot_samples(Zhat[-1, :], axs[1, 0])
+    plot_samples(ZK, axs[1, 0])
     axs[1, 0].set_title('Variational latent')
 
     mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
     # A, B, log_sigma_diag_lklhd = theta
-    Xhat = f_pred(Zhat[-1, :], A, B)
+    Xhat = f_pred(ZK, A, B)
 
     plot_samples(X, axs[0, 1])
     axs[0, 1].set_title('Observed')

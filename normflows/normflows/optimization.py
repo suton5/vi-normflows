@@ -6,7 +6,7 @@ from autograd import grad
 from autograd.misc.optimizers import adam, rmsprop
 import matplotlib.pyplot as plt
 
-from normflows import flows
+from .flows import planar_flow
 from .distributions import sample_from_pz
 from .plotting import plot_samples
 from .nn_models import Feedforward, default_architecture
@@ -68,7 +68,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     def F(z0, phi, theta, t):
         eps = 1e-7
         weights, W, U, B = phi
-        beta_t = np.min(np.array([1, 0.001 + t / 5000]))
+        beta_t = np.min(np.array([1, 0.001 + t / 1000]))
 
         q0_params = nn.forward(weights, X.T).reshape(N, -1)
         mu0 = q0_params[:, :D]
@@ -85,13 +85,13 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
             # running_sum += np.log(eps + np.abs(1 + np.matmul(affine, u)))
             # zk = zk + np.outer(np.tanh(np.matmul(zk, w) + b), u_hat)
 
-            running_sum += np.log(eps + np.abs(1 + np.dot(u, logdet_jac(w, zk.T, b))))
-            zk = flows.planar_flow(zk, w, u, b)
+            running_sum = running_sum + np.log(eps + np.abs(1 + np.dot(u, logdet_jac(w, zk.T, b))))
+            zk = planar_flow(zk, w, u, b)
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta))
-        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
+        # second = np.mean(logp(X, zk, theta))
+        second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 
         return first - second - third
@@ -99,11 +99,8 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     objective, gradient = gradient_create(F, D, N, unpack_params)
     pbar = tqdm(total=max_iter)
 
-    param_trace = []
-
     def callback(params, t, g):
         pbar.update()
-        param_trace.append(params)
         if verbose:
             if t % 100 == 0:
                 grad_t = gradient(params, t)
@@ -111,8 +108,7 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
                 tqdm.write(f"Iteration {t}; objective: {objective(params, t)} gradient mag: {grad_mag:.3f}")
                 # tqdm.write(f"Gradient: {grad_t}")
 
-    variational_params = rmsprop(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
+    variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
     pbar.close()
 
-    param_trace = np.vstack(param_trace).T
     return unpack_params(variational_params)
