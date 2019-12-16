@@ -9,18 +9,18 @@ import matplotlib.pyplot as plt
 from normflows import flows
 from .distributions import sample_from_pz
 from .plotting import plot_samples
+from .nn_models import Feedforward, default_architecture
 
 
 rs = npr.RandomState(0)
 
 
-def gradient_create(F, D, K, N, unpack_params):
+def gradient_create(F, D, N, unpack_params):
     """Create variational objective, gradient, and parameter unpacking function
 
     Arguments:
         F {callable} -- Energy function (to be minimized)
         D {int} -- dimension of latent variables
-        K {int} -- number of flows
         N {int} -- Number of samples to draw
         unpack_params {callable} -- Parameter unpacking function
 
@@ -31,7 +31,7 @@ def gradient_create(F, D, K, N, unpack_params):
     def variational_objective(params, t):
         phi, theta = unpack_params(params)
         z0 = rs.randn(N, D)  # Gaussian noise here. Will add back in mu and sigma in F
-        free_energy = F(z0, phi, theta, K, t)
+        free_energy = F(z0, phi, theta, t)
         return free_energy
 
     gradient = grad(variational_objective)
@@ -63,10 +63,16 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     def logdet_jac(w, z, b):
         return np.outer(w.T, hprime(np.matmul(w, z) + b))
 
-    def F(z0, phi, theta, K, t):
+    nn = Feedforward(architecture=default_architecture, random=rs)
+
+    def F(z0, phi, theta, t):
         eps = 1e-7
-        mu0, log_sigma_diag0, W, U, B = phi
+        weights, W, U, B = phi
         beta_t = np.min(np.array([1, 0.001 + t / 5000]))
+
+        q0_params = nn.forward(weights, X.T).reshape(N, -1)
+        mu0 = q0_params[:, :D]
+        log_sigma_diag0 = q0_params[:, D:]
 
         sd = np.sqrt(np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
@@ -84,13 +90,13 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
-        # second = np.mean(logp(X, zk, theta))
-        second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
+        second = np.mean(logp(X, zk, theta))
+        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 
         return first - second - third
 
-    objective, gradient = gradient_create(F, D, K, N, unpack_params)
+    objective, gradient = gradient_create(F, D, N, unpack_params)
     pbar = tqdm(total=max_iter)
 
     param_trace = []

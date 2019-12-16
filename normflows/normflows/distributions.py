@@ -80,12 +80,12 @@ def log_prob_gm(Z, mu, log_sigma_diag, logit_pi):
     return np.log(prob)
 
 
-def sample_from_pz(mu, log_sigma_diag, W, U, b, K, num_samples):
-    Sigma = np.diag(np.exp(log_sigma_diag))
-    dim_z = len(mu)
+def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
+    N, D = mu.shape
+    sd = np.sqrt(np.exp(log_sigma_diag))
 
-    Z = np.zeros((K + 1, num_samples, dim_z))
-    z = np.random.multivariate_normal(mu, Sigma, num_samples)
+    Z = np.zeros((K + 1, N, D))
+    z = np.random.randn(N, D) * sd + mu
 
     Z[0] = z
     for k in range(K):

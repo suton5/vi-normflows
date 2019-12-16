@@ -5,10 +5,30 @@ import autograd.numpy.random as npr
 
 import matplotlib.pyplot as plt
 
-from normflows import flows, distributions, transformations, optimization
+from normflows import flows, distributions, transformations, optimization, nn_models
 
 
 rs = npr.RandomState(0)
+nn = nn_models.Feedforward(architecture=nn_models.default_architecture, random=rs)
+
+
+def make_samples_z(X, weights, W, U, b, K, D, N):
+    """Sample from latent distribution
+
+    :param X: {np.ndarray} -- Observed variables (N, D)
+    :param weights: {np.ndarray} -- Weights of inference network (1, D)
+    :param W: {np.ndarray} -- flow parameter (K, D)
+    :param U: {np.ndarray} -- flow parameter (K, D)
+    :param b: {np.ndarray} -- flow parameter (K,)
+    :param K: {int} -- Number of flows
+    :param D: {int} -- Dimension of Z
+    :param N: {int} -- Number of samples
+    :return: {np.ndarray} -- samples
+    """
+    q0_params = nn.forward(weights, X.T).reshape(N, -1)
+    mu, log_sigma_diag = q0_params[:, :D], q0_params[:, D:]
+    print(mu.shape, log_sigma_diag.shape)
+    return distributions.sample_from_pz(mu, log_sigma_diag, W, U, b, K)
 
 
 def sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples):
@@ -90,13 +110,15 @@ def make_unpack_params(D, K, G):
         'unpack_params'
     """
     def unpack_phi(phi):
-        mu0 = phi[:D]
-        log_sigma_diag0 = phi[D:2 * D]
-        W = phi[2 * D:2 * D + K * D].reshape(K, D)
-        U = phi[2 * D + K * D:2 * (D + K * D)].reshape(K, D)
-        b = phi[-K:]
+        nw = nn.D  # Number of weights
+        # mu0 = phi[:D]
+        # log_sigma_diag0 = phi[D:2 * D]
+        weights, flow_params = phi[:nw].reshape(1, -1), phi[nw:]
+        W = flow_params[:K * D].reshape(K, D)
+        U = flow_params[K * D:2 * K * D].reshape(K, D)
+        b = flow_params[-K:]
 
-        return mu0, log_sigma_diag0, W, U, b
+        return weights, W, U, b
 
     def unpack_theta(theta):
         mu_z = theta[:D * G].reshape(G, D)
@@ -110,8 +132,8 @@ def make_unpack_params(D, K, G):
         # return A, B, log_sigma_diag_lklhd
 
     def unpack_params(params):
-        phi = params[:2 * D * (1 + K) + K]
-        theta = params[2 * D * (1 + K) + K:]
+        phi = params[:nn.D + 2 * (K * D) + K]
+        theta = params[nn.D + 2 * (K * D) + K:]
 
         phi = unpack_phi(phi)
         theta = unpack_theta(theta)
@@ -123,15 +145,15 @@ def make_unpack_params(D, K, G):
 def get_init_params(D, K, G):
     # --- Initializing --- #
     # phi
-    init_mu0 = np.ones(D) * 1
-    init_log_sigma0 = np.ones(D) * 0
+    # init_mu0 = np.ones(D) * 1
+    # init_log_sigma0 = np.ones(D) * 0
+    init_weights = np.ones(nn.D)
     init_W = np.ones((K, D)) * 1
     init_U = np.ones((K, D)) * 1
     init_b = np.ones(K) * 0
 
     init_phi = np.concatenate([
-            init_mu0,
-            init_log_sigma0,
+            init_weights,
             init_W.flatten(),
             init_U.flatten(),
             init_b
@@ -197,7 +219,7 @@ def main():
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
 
-    Zhat = distributions.sample_from_pz(*phi, K, n_samples)
+    Zhat = make_samples_z(X, *phi, K, D, n_samples)
 
     fig, axs = plt.subplots(ncols=2, nrows=2, sharex=True)
     plot_samples(Z, axs[0, 0])
