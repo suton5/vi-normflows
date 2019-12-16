@@ -146,7 +146,7 @@ def get_init_params(D, K, G):
     # phi
     # init_mu0 = np.ones(D) * 1
     # init_log_sigma0 = np.ones(D) * 0
-    init_weights = np.ones(nn.D)
+    init_weights = np.ones(nn.D) * 2
     init_W = np.ones((K, D)) * 1
     init_U = np.ones((K, D)) * 1
     init_b = np.ones(K) * 0
@@ -159,7 +159,7 @@ def get_init_params(D, K, G):
         ])
 
     # theta
-    init_mu_z = np.ones((G, D)) * 1
+    init_mu_z = np.ones((G, D)) * 4
     init_log_sigma_z = np.ones((G, D)) * 1
     init_logit_pi = transformations.logit(np.array([0.5]))
     init_A = np.eye(D)
@@ -191,11 +191,10 @@ def logp(X, Z, theta):
     mu_x = transformations.affine(Z, A, B)
     log_prob_x = distributions.log_mvn(X, mu_x, log_sigma_diag_lklhd)
 
-
     return log_prob_x + log_prob_z
 
 
-def run_optimization(X, K, D, init_params, unpack_params, max_iter=5000, N=1000, step_size=5e-4):
+def run_optimization(X, K, D, init_params, unpack_params, max_iter=10000, N=1000, step_size=1e-4):
     return optimization.optimize(logp, X, D, K, N,
                                  init_params, unpack_params, max_iter, step_size,
                                  verbose=True)

@@ -94,7 +94,8 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
         second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 
-        return first - second - third
+        # return first - second - third
+        return - second - third
 
     objective, gradient = gradient_create(F, D, N, unpack_params)
     pbar = tqdm(total=max_iter)
