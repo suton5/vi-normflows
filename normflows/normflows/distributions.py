@@ -93,7 +93,7 @@ def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
     return Z
 
 
-def make_samples_z(X, weights, W, U, b, K, D, N):
+def make_samples_z(mu, log_sigma_diag, W, U, b, K):
     """Sample from latent distribution
 
     :param X: {np.ndarray} -- Observed variables (N, D)
@@ -106,6 +106,4 @@ def make_samples_z(X, weights, W, U, b, K, D, N):
     :param N: {int} -- Number of samples
     :return: {np.ndarray} -- samples
     """
-    q0_params = nn.forward(weights, X.T).reshape(N, -1)
-    mu, log_sigma_diag = q0_params[:, :D], q0_params[:, D:]
     return sample_from_pz(mu, log_sigma_diag, W, U, b, K)

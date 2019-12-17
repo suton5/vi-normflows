@@ -65,7 +65,7 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
         return 1 - np.tanh(x) ** 2
 
     def logdet_jac(w, z, b):
-        return np.outer(w.T, hprime(np.matmul(w, z) + b))
+        return np.dot(w.T, hprime(np.sum(w * z, axis=1) + b))
 
     def F(z0, phi, theta, t):
         eps = 1e-7
@@ -80,7 +80,7 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
         for k in range(K):
             w, u, b = W[k], U[k], B[k]
             #TODO: Get these two work with flow params in the shape (K, N, D)
-            running_sum = running_sum + np.log(eps + np.abs(1 + np.dot(u, logdet_jac(w, zk.T, b))))
+            running_sum = running_sum + np.log(eps + np.linalg.norm(1 + np.dot(u, logdet_jac(w, zk.T, b))))
             zk = planar_flow(zk, w, u, b)
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)

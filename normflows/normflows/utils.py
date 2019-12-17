@@ -10,7 +10,7 @@ def clear_figs():
 
 def get_samples_from_params(phi, theta, X, K):
     N, D = X.shape
-    Zhat = make_samples_z(X, *phi, K, D, N)
+    Zhat = make_samples_z(*phi, K)
     ZK = Zhat[K, :, :]
     mu_z, log_sigma_diag_pz, logit_pi, A, B = theta
     Xhat = affine(ZK, A, B) + rs.randn(N, D)

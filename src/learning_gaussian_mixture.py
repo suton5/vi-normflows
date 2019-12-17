@@ -197,8 +197,8 @@ def main():
     phi, theta = run_optimization(X, Z, K, D, init_params, unpack_params,
                                   max_iter=5000, N=n_samples, step_size=1e-3)
 
-    print(f"Variational params: {phi}")
-    print(f"Generative params: {theta}")
+    # print(f"Variational params: {phi}")
+    # print(f"Generative params: {theta}")
 
     Xhat, ZK = utils.get_samples_from_params(phi, theta, X, K)
     plotting.plot_obs_latent(X, Z, Xhat, ZK)
