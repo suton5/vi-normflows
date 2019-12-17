@@ -160,14 +160,15 @@ class Feedforward:
         self.weight_trace = self.weight_trace[1:]
 
 
-default_architecture = {'width': 2,
-                        'hidden_layers': 1,
+K = 3
+D = 1
+default_architecture = {'width': 8,
+                        'hidden_layers': 3,
                         'input_dim': 1,
-                        'output_dim': 2,
+                        'output_dim': 2 * D + 2 * D * K + 1 * K,  # 2 for mu + sigma, 2 for W, U, 1 for b
                         'activation_fn_type': 'rbf',
                         'activation_fn_params': 'c=0, alpha=1',
                         'activation_fn': lambda x: np.exp(-1 * (x - 0)**2)}
 
 
 nn = Feedforward(architecture=default_architecture)
-

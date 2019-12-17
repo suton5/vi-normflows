@@ -69,14 +69,9 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
 
     def F(z0, phi, theta, t):
         eps = 1e-7
-        weights, W, U, B = phi
+        mu0, log_sigma_diag0, W, U, B = phi
         cooling_max = np.min(np.array([max_iter / 2, 10000]))
         beta_t = np.min(np.array([1, 0.001 + t / cooling_max]))
-
-        # Here is the amortisation -- Using a 1-layer NN as an encoder
-        q0_params = nn.forward(weights, X.T).reshape(N, -1)
-        mu0 = q0_params[:, :D]
-        log_sigma_diag0 = q0_params[:, D:]
 
         sd = np.sqrt(np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
@@ -84,11 +79,7 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
         running_sum = 0.
         for k in range(K):
             w, u, b = W[k], U[k], B[k]
-            # u_hat = -1 + np.log(1 + np.exp((np.dot(w, u) - np.dot(w, u)) * (w / np.linalg.norm(w)))) + u
-            # affine = np.outer(hprime(np.matmul(zk, w) + b), w)
-            # running_sum += np.log(eps + np.abs(1 + np.matmul(affine, u)))
-            # zk = zk + np.outer(np.tanh(np.matmul(zk, w) + b), u_hat)
-
+            #TODO: Get these two work with flow params in the shape (K, N, D)
             running_sum = running_sum + np.log(eps + np.abs(1 + np.dot(u, logdet_jac(w, zk.T, b))))
             zk = planar_flow(zk, w, u, b)
 

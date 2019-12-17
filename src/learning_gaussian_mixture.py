@@ -79,7 +79,7 @@ def f_pred(Z, slope, intercept):
     return X
 
 
-def make_unpack_params(D, K, G):
+def make_unpack_params(D, K, G, X):
     """Create variational objective, gradient, and parameter unpacking function
 
     Arguments:
@@ -90,16 +90,18 @@ def make_unpack_params(D, K, G):
     Returns
         'unpack_params'
     """
-    def unpack_phi(phi):
-        nw = nn.D  # Number of weights
-        # mu0 = phi[:D]
-        # log_sigma_diag0 = phi[D:2 * D]
-        weights, flow_params = phi[:nw].reshape(1, -1), phi[nw:]
-        W = flow_params[:K * D].reshape(K, D)
-        U = flow_params[K * D:2 * K * D].reshape(K, D)
-        b = flow_params[-K:]
+    N = X.shape[0]
+    def unpack_phi(weights):
+        # Here is the amortisation -- Using a 1-layer NN as an encoder
+        # Confirm that this doesn't screw with autograd
+        phi = nn.forward(weights.reshape(1, -1), X.reshape(D, -1))[0]
+        mu0 = phi[:D].reshape(N, D)
+        log_sigma_diag0 = phi[D:2 * D].reshape(N, D)
+        W = phi[2 * D:2 * D + K * D].reshape(K, N, D)
+        U = phi[2 * D + K * D:2 * D + 2 * K * D].reshape(K, N, D)
+        b = phi[-K:].reshape(K, N)
 
-        return weights, W, U, b
+        return mu0, log_sigma_diag0, W, U, b
 
     def unpack_theta(theta):
         mu_z = theta[:D * G].reshape(G, D)
@@ -107,14 +109,14 @@ def make_unpack_params(D, K, G):
         logit_pi = theta[2 * D * G:2 * D * G + G - 1]
         A = theta[-(D ** 2 + 2 * D):-2 * D].reshape(D, D)
         B = theta[-2 * D:-D]
-        log_sigma_diag_lklhd = theta[-D:]
+        # log_sigma_diag_lklhd = theta[-D:]
 
         return mu_z, log_sigma_diag_pz, logit_pi, A, B
         # return A, B, log_sigma_diag_lklhd
 
     def unpack_params(params):
-        phi = params[:nn.D + 2 * (K * D) + K]
-        theta = params[nn.D + 2 * (K * D) + K:]
+        phi = params[:nn.D]
+        theta = params[nn.D:]
 
         phi = unpack_phi(phi)
         theta = unpack_theta(theta)
@@ -129,16 +131,15 @@ def get_init_params(D, K, G):
     # init_mu0 = np.ones(D) * 1
     # init_log_sigma0 = np.ones(D) * 0
     init_weights = np.random.randn(nn.D)
-    init_W = np.ones((K, D)) * 1
-    init_U = np.ones((K, D)) * 1
-    init_b = np.ones(K) * 0
+    # init_W = np.ones((K, D)) * 1
+    # init_U = np.ones((K, D)) * 1
+    # init_b = np.ones(K) * 0
 
-    init_phi = np.concatenate([
-            init_weights,
-            init_W.flatten(),
-            init_U.flatten(),
-            init_b
-        ])
+    # init_phi = np.concatenate([
+    #         init_weights,
+    #     ])
+    init_phi = init_weights
+    print(nn.D)
 
     # theta
     init_mu_z = np.ones((G, D)) * 4
@@ -183,7 +184,7 @@ def run_optimization(X, Z_true, K, D, init_params, unpack_params, max_iter=2000,
 
 
 def main():
-    K = 4
+    K = 3
     D = 1
     G = 2
     n_samples = 500
@@ -191,7 +192,7 @@ def main():
     Z = get_gmm_samples(n_samples=n_samples)
     X = f_true(Z)
 
-    unpack_params = make_unpack_params(D, K, G)
+    unpack_params = make_unpack_params(D, K, G, X)
     init_params = get_init_params(D, K, G)
     phi, theta = run_optimization(X, Z, K, D, init_params, unpack_params,
                                   max_iter=5000, N=n_samples, step_size=1e-3)
