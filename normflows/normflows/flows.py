@@ -25,26 +25,8 @@ def planar_flow(z: np.ndarray,
     """
     u = _get_uhat(u, w)
     assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
-
     assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
-
-    # w = w.flatten()
-    # u = u.flatten()
-    #
-    # assert z.ndim == 2, f'z has incorrect number of dimensions ({z.ndim}).'
-    #
-    # d = z.shape[1]
-    #
-    # assert d == w.shape[0], f'Dimensions of z and w are not aligned ({d} != {w.shape[0]}).'
-    # assert d == u.shape[0], f'Dimensions of z and u are not aligned ({d} != {u.shape[0]}).'
-
-    # dotprod = np.dot(w, z.T)
-    # h_arg = dotprod + b
-    # h_res = np.repeat(h(h_arg).reshape(-1, 1), d, axis=1)
-    # u_mult = u * h_res
-    # res = z + u_mult.reshape(N, d)
     return z + np.outer(np.tanh(np.matmul(z, w) + b), u)
-    # return res
 
 
 def _get_uhat(u, w):

@@ -5,29 +5,11 @@ import autograd.numpy.random as npr
 
 import matplotlib.pyplot as plt
 
-from normflows import flows, distributions, transformations, optimization, nn_models
+from normflows import (flows, distributions, transformations, config,
+                       optimization, nn_models, plotting, utils)
 
-
-rs = npr.RandomState(0)
-nn = nn_models.Feedforward(architecture=nn_models.default_architecture, random=rs)
-
-
-def make_samples_z(X, weights, W, U, b, K, D, N):
-    """Sample from latent distribution
-
-    :param X: {np.ndarray} -- Observed variables (N, D)
-    :param weights: {np.ndarray} -- Weights of inference network (1, D)
-    :param W: {np.ndarray} -- flow parameter (K, D)
-    :param U: {np.ndarray} -- flow parameter (K, D)
-    :param b: {np.ndarray} -- flow parameter (K,)
-    :param K: {int} -- Number of flows
-    :param D: {int} -- Dimension of Z
-    :param N: {int} -- Number of samples
-    :return: {np.ndarray} -- samples
-    """
-    q0_params = nn.forward(weights, X.T).reshape(N, -1)
-    mu, log_sigma_diag = q0_params[:, :D], q0_params[:, D:]
-    return distributions.sample_from_pz(mu, log_sigma_diag, W, U, b, K)
+rs = config.rs
+nn = nn_models.nn
 
 
 def sample_gaussian_mixture(mus, Sigma_diags, probs, n_samples):
@@ -78,7 +60,7 @@ def get_gmm_samples(n_samples=10000):
 def f_true(Z):
     """Defining a simple affine transformation to transform Z into X.
     """
-    mus = 2 * Z + 3.5
+    mus = 2 * Z + 10
     Sigma = np.array([[1]])
     X = np.zeros_like(Z)
     for i in range(Z.shape[0]):
@@ -127,7 +109,7 @@ def make_unpack_params(D, K, G):
         B = theta[-2 * D:-D]
         log_sigma_diag_lklhd = theta[-D:]
 
-        return mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd
+        return mu_z, log_sigma_diag_pz, logit_pi, A, B
         # return A, B, log_sigma_diag_lklhd
 
     def unpack_params(params):
@@ -146,7 +128,7 @@ def get_init_params(D, K, G):
     # phi
     # init_mu0 = np.ones(D) * 1
     # init_log_sigma0 = np.ones(D) * 0
-    init_weights = np.ones(nn.D) * 2
+    init_weights = np.random.randn(nn.D)
     init_W = np.ones((K, D)) * 1
     init_U = np.ones((K, D)) * 1
     init_b = np.ones(K) * 0
@@ -161,7 +143,7 @@ def get_init_params(D, K, G):
     # theta
     init_mu_z = np.ones((G, D)) * 4
     init_log_sigma_z = np.ones((G, D)) * 1
-    init_logit_pi = transformations.logit(np.array([0.5]))
+    init_logit_pi = transformations.logit(np.array([0.6]))
     init_A = np.eye(D)
     init_B = np.zeros(D)
     init_log_sigma_lklhd = np.zeros(D)  # Assuming diagonal covariance for likelihood
@@ -172,7 +154,6 @@ def get_init_params(D, K, G):
             init_logit_pi,
             init_A.flatten(),
             init_B,
-            init_log_sigma_lklhd
         ])
 
     init_params = np.concatenate((init_phi, init_theta))
@@ -184,7 +165,8 @@ def logp(X, Z, theta):
     """Joint likelihood for Gaussian mixture model
     """
     # Maybe reshape these bois
-    mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
+    mu_z, log_sigma_diag_pz, logit_pi, A, B = theta
+    log_sigma_diag_lklhd = np.array([1])
     # A, B, log_sigma_diag_lklhd = theta
     log_prob_z = distributions.log_prob_gm(Z, mu_z, log_sigma_diag_pz, logit_pi)
 
@@ -194,8 +176,8 @@ def logp(X, Z, theta):
     return log_prob_x + log_prob_z
 
 
-def run_optimization(X, K, D, init_params, unpack_params, max_iter=10000, N=1000, step_size=1e-4):
-    return optimization.optimize(logp, X, D, K, N,
+def run_optimization(X, Z_true, K, D, init_params, unpack_params, max_iter=2000, N=1000, step_size=1e-4):
+    return optimization.optimize(logp, X, Z_true, D, K, N,
                                  init_params, unpack_params, max_iter, step_size,
                                  verbose=True)
 
@@ -211,30 +193,14 @@ def main():
 
     unpack_params = make_unpack_params(D, K, G)
     init_params = get_init_params(D, K, G)
-    phi, theta = run_optimization(X, K, D, init_params, unpack_params,
-                                  max_iter=2000, N=n_samples, step_size=5e-3)
+    phi, theta = run_optimization(X, Z, K, D, init_params, unpack_params,
+                                  max_iter=5000, N=n_samples, step_size=1e-3)
 
     print(f"Variational params: {phi}")
     print(f"Generative params: {theta}")
 
-    Zhat = make_samples_z(X, *phi, K, D, n_samples)
-    print(Zhat.shape)
-    ZK = Zhat[K, :, :]
-
-    fig, axs = plt.subplots(ncols=2, nrows=2, sharex=True)
-    plot_samples(Z, axs[0, 0])
-    axs[0, 0].set_title('Latent')
-    plot_samples(ZK, axs[1, 0])
-    axs[1, 0].set_title('Variational latent')
-
-    mu_z, log_sigma_diag_pz, logit_pi, A, B, log_sigma_diag_lklhd = theta
-    # A, B, log_sigma_diag_lklhd = theta
-    Xhat = f_pred(ZK, A, B)
-
-    plot_samples(X, axs[0, 1])
-    axs[0, 1].set_title('Observed')
-    plot_samples(Xhat, axs[1, 1])
-    axs[1, 1].set_title("Variational observed")
+    Xhat, ZK = utils.get_samples_from_params(phi, theta, X, K)
+    plotting.plot_obs_latent(X, Z, Xhat, ZK)
 
     plt.show()
 

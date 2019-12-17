@@ -5,6 +5,7 @@ import autograd.scipy as sp
 
 from .transformations import sigmoid
 from .flows import planar_flow
+from .nn_models import nn
 
 def mvn(Z, mu, sigma_diag):
     """Multivariate normal distribution
@@ -68,10 +69,9 @@ def prob_gm(Z, mu, sigma_diag, pi):
 def log_prob_gm(Z, mu, log_sigma_diag, logit_pi):
     # assert np.sum(pi) < 1, f'probabilities of GMM do not sum to less than 1 ({np.sum(pi)})'
     # assert np.all(pi >= 0), f'Probabilities of GMM cannot be negative'
-    #TODO: Constrain this!
     pi = sigmoid(logit_pi)
     # if np.sum(pi) > 1:
-    #     pi /= np.sum(pi)
+    #     pi = pi / np.sum(pi)
     assert mu.shape[0] == pi.shape[0] + 1, f'Number of means does not match number of components'
     assert Z.shape[1] == mu.shape[1], f'Dimensions of random variable and mean vector not aligned'
 
@@ -91,3 +91,21 @@ def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
     for k in range(K):
         Z[k + 1] = planar_flow(z, W[k], U[k], b[k])
     return Z
+
+
+def make_samples_z(X, weights, W, U, b, K, D, N):
+    """Sample from latent distribution
+
+    :param X: {np.ndarray} -- Observed variables (N, D)
+    :param weights: {np.ndarray} -- Weights of inference network (1, D)
+    :param W: {np.ndarray} -- flow parameter (K, D)
+    :param U: {np.ndarray} -- flow parameter (K, D)
+    :param b: {np.ndarray} -- flow parameter (K,)
+    :param K: {int} -- Number of flows
+    :param D: {int} -- Dimension of Z
+    :param N: {int} -- Number of samples
+    :return: {np.ndarray} -- samples
+    """
+    q0_params = nn.forward(weights, X.T).reshape(N, -1)
+    mu, log_sigma_diag = q0_params[:, :D], q0_params[:, D:]
+    return sample_from_pz(mu, log_sigma_diag, W, U, b, K)

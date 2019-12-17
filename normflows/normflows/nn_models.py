@@ -1,4 +1,5 @@
 from autograd import numpy as np
+import autograd.numpy.random as npr
 from autograd import grad
 from autograd.misc.optimizers import adam
 
@@ -20,7 +21,7 @@ class Feedforward:
         if random is not None:
             self.random = random
         else:
-            self.random = np.random.RandomState(0)
+            self.random = np.random.RandomState(101)
 
         self.h = architecture['activation_fn']
 
@@ -166,3 +167,7 @@ default_architecture = {'width': 2,
                         'activation_fn_type': 'rbf',
                         'activation_fn_params': 'c=0, alpha=1',
                         'activation_fn': lambda x: np.exp(-1 * (x - 0)**2)}
+
+
+nn = Feedforward(architecture=default_architecture)
+

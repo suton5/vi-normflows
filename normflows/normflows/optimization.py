@@ -7,12 +7,16 @@ from autograd.misc.optimizers import adam, rmsprop
 import matplotlib.pyplot as plt
 
 from .flows import planar_flow
-from .distributions import sample_from_pz
-from .plotting import plot_samples
-from .nn_models import Feedforward, default_architecture
+from .distributions import sample_from_pz, make_samples_z
+from .plotting import plot_samples, plot_obs_latent
+from .nn_models import nn
+from .config import figname
+from .utils import clear_figs, get_samples_from_params
+from.transformations import affine
 
 
 rs = npr.RandomState(0)
+clear_figs()
 
 
 def gradient_create(F, D, N, unpack_params):
@@ -39,7 +43,7 @@ def gradient_create(F, D, N, unpack_params):
     return variational_objective, gradient
 
 
-def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, verbose=True):
+def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, step_size, verbose=True):
     """Run the optimization for a mixture of Gaussians
 
     Arguments:
@@ -63,13 +67,13 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
     def logdet_jac(w, z, b):
         return np.outer(w.T, hprime(np.matmul(w, z) + b))
 
-    nn = Feedforward(architecture=default_architecture, random=rs)
-
     def F(z0, phi, theta, t):
         eps = 1e-7
         weights, W, U, B = phi
-        beta_t = np.min(np.array([1, 0.001 + t / 1000]))
+        cooling_max = np.min(np.array([max_iter / 2, 10000]))
+        beta_t = np.min(np.array([1, 0.001 + t / cooling_max]))
 
+        # Here is the amortisation -- Using a 1-layer NN as an encoder
         q0_params = nn.forward(weights, X.T).reshape(N, -1)
         mu0 = q0_params[:, :D]
         log_sigma_diag0 = q0_params[:, D:]
@@ -90,12 +94,12 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
 
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
-        # second = np.mean(logp(X, zk, theta))
-        second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
+        second = np.mean(logp(X, zk, theta))
+        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
 
         # return first - second - third
-        return - second - third
+        return first - second - third
 
     objective, gradient = gradient_create(F, D, N, unpack_params)
     pbar = tqdm(total=max_iter)
@@ -104,10 +108,14 @@ def optimize(logp, X, D, K, N, init_params, unpack_params, max_iter, step_size, 
         pbar.update()
         if verbose:
             if t % 100 == 0:
-                grad_t = gradient(params, t)
-                grad_mag = np.linalg.norm(grad_t)
+                grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; objective: {objective(params, t)} gradient mag: {grad_mag:.3f}")
-                # tqdm.write(f"Gradient: {grad_t}")
+            if t % 200 == 0:
+                phi, theta = unpack_params(params)
+                Xhat, ZK = get_samples_from_params(phi, theta, X, K)
+                plot_obs_latent(X, Z_true, Xhat, ZK)
+                plt.savefig(figname.format(t))
+                plt.close()
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
     pbar.close()
