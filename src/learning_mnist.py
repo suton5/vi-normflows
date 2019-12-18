@@ -119,6 +119,7 @@ def main():
                                   max_iter=5000, batch_size=256, N=1000, step_size=1e-4)
 
     print("DONE")
+    #TODO: Make a 2-d figure showing both the variational latent and the generative model
 
 if __name__ == '__main__':
     main()

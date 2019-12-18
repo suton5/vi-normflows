@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from .config import figs, rs, figname
 from .distributions import make_samples_z, sample_from_pz
 from .transformations import affine
-from .plotting import plot_obs_latent, plot_mnist
+from .plotting import plot_mnist
 
 
 def clear_figs():
@@ -37,6 +37,7 @@ def compare_reconstruction(phi, theta, x_true, encode, decode, t):
 
 
 def make_batch_iter(X, batch_size, max_iter):
+    #TODO: This currently breaks on the last epoch
     N, D = X.shape
     n_epochs = max_iter // batch_size
     n_batches = N // batch_size

@@ -4,15 +4,9 @@ from autograd import numpy as np
 from autograd.numpy import random as npr
 from autograd import grad
 from autograd.misc.optimizers import adam, rmsprop
-import matplotlib.pyplot as plt
 
 from .flows import planar_flow
-from .distributions import sample_from_pz, make_samples_z
-from .plotting import plot_samples, plot_obs_latent, plot_mnist
-from .nn_models import nn
-from .config import figname
 from .utils import clear_figs, get_samples_from_params, compare_reconstruction, make_batch_iter
-from.transformations import affine
 
 
 rs = npr.RandomState(0)
@@ -120,18 +114,6 @@ def optimize(logp, X, D, K, N, init_params,
                 Xtrue = X[101].reshape(1, -1)
                 phi, theta = unpack_params(params)
                 compare_reconstruction(phi, theta, Xtrue, encode, decode, t)
-                # mu0, log_sigma_diag0, W, U, b = encode(phi, Xtrue)
-                # z = sample_from_pz(mu0, log_sigma_diag0, W, U, b)
-                # logits = decode(theta, z)
-                # Xhat = npr.binomial(1, logits)
-                #
-                # Xtrue_im = Xtrue.reshape(28, 28)
-                # Xhat_im = Xhat.reshape(28, 28)
-                #
-                # plot_mnist(Xtrue_im, Xhat_im)
-                # plt.savefig(figname.format(t))
-                # plt.close()
-
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
     pbar.close()
