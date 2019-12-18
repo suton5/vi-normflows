@@ -9,7 +9,7 @@ from normflows import (config, optimization,
                        distributions, nn_models, transformations)
 
 
-K = 3
+K = 16
 dim_z = 2
 dim_x = 28 * 28
 width = 64
