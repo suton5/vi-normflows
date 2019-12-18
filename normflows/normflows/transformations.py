@@ -13,3 +13,6 @@ def affine(Z, slope, intercept):
     """Predicting observed variables given the latent variables.
     """
     return np.matmul(slope, Z.T).T + intercept
+
+
+relu = lambda x: x * (x > 0)

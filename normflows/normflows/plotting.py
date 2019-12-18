@@ -24,3 +24,20 @@ def plot_obs_latent(X, Z, Xhat, Zhat):
     axs[0, 1].set_title('Observed')
     plot_samples(Xhat, axs[1, 1])
     axs[1, 1].set_title("Variational observed")
+
+
+def plot_mnist(im_true, im_recon):
+    """Plot the true and reconstructed images side-by-side
+
+    :param im_true: np.ndarray (28, 28)
+    :param im_recon: np.ndarray (28, 28)
+    :return: list(ax)
+    """
+    fig, axs = plt.subplots(ncols=2)
+    axs[0].imshow(im_true)
+    axs[1].imshow(im_recon)
+
+    axs[0].set_title("True")
+    axs[1].set_title("Reconstructed")
+
+    return axs

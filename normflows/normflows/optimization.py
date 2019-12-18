@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 
 from .flows import planar_flow
 from .distributions import sample_from_pz, make_samples_z
-from .plotting import plot_samples, plot_obs_latent
+from .plotting import plot_samples, plot_obs_latent, plot_mnist
 from .nn_models import nn
 from .config import figname
-from .utils import clear_figs, get_samples_from_params
+from .utils import clear_figs, get_samples_from_params, compare_reconstruction
 from.transformations import affine
 
 
@@ -43,7 +43,9 @@ def gradient_create(F, D, N, unpack_params):
     return variational_objective, gradient
 
 
-def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, step_size, verbose=True):
+def optimize(logp, X, D, K, N, init_params,
+             unpack_params, encode, decode,
+             max_iter, step_size, verbose=True):
     """Run the optimization for a mixture of Gaussians
 
     Arguments:
@@ -64,30 +66,40 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
     def hprime(x):
         return 1 - np.tanh(x) ** 2
 
-    def logdet_jac(w, z, b):
-        return np.dot(w.T, hprime(np.sum(w * z, axis=1) + b))
+    logdet_jac = lambda w, z, b: np.sum(w * hprime(np.sum(w * z, axis=1) + b).reshape(-1, 1), axis=1)
 
     def F(z0, phi, theta, t):
         eps = 1e-7
-        mu0, log_sigma_diag0, W, U, B = phi
+        mu0, log_sigma_diag0, W, U, B = encode(phi, X)
         cooling_max = np.min(np.array([max_iter / 2, 10000]))
         beta_t = np.min(np.array([1, 0.001 + t / cooling_max]))
 
         sd = np.sqrt(np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
+        # Unsure if this should be z0 or z1 (after adding back in mean and sd)
+        first = np.mean(logq0(z0))
+
 
         running_sum = 0.
         for k in range(K):
             w, u, b = W[k], U[k], B[k]
-            #TODO: Get these two work with flow params in the shape (K, N, D)
-            running_sum = running_sum + np.log(eps + np.linalg.norm(1 + np.dot(u, logdet_jac(w, zk.T, b))))
+            #TODO: Get these to work with flow params in the shape (K, N, D)
+            ldj = logdet_jac(w, zk, b)
+            # print(f"ldj: {ldj}")
+            ldj_dotprod = np.sum(u * ldj.reshape(-1, 1), axis=1)
+            # print(f"ldj-dotprod: {ldj_dotprod}")
+            ldj_abs = np.abs(1. + ldj_dotprod)
+            # print(f"ldj-abs: {ldj_abs}")
+            delta = np.log(eps + ldj_abs)
+            # print(f"delta: {delta}")
+            running_sum = running_sum + delta
             zk = planar_flow(zk, w, u, b)
-
-        # Unsure if this should be z0 or z1 (after adding back in mean and sd)
-        first = np.mean(logq0(z0))
-        second = np.mean(logp(X, zk, theta))
-        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
         third = np.mean(running_sum)
+
+        logits = decode(theta, zk)
+
+        second = np.mean(logp(X, zk, logits))
+        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
 
         # return first - second - third
         return first - second - third
@@ -102,11 +114,22 @@ def optimize(logp, X, Z_true, D, K, N, init_params, unpack_params, max_iter, ste
                 grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; objective: {objective(params, t)} gradient mag: {grad_mag:.3f}")
             if t % 200 == 0:
+
+                Xtrue = X[101].reshape(1, -1)
                 phi, theta = unpack_params(params)
-                Xhat, ZK = get_samples_from_params(phi, theta, X, K)
-                plot_obs_latent(X, Z_true, Xhat, ZK)
-                plt.savefig(figname.format(t))
-                plt.close()
+                compare_reconstruction(phi, theta, Xtrue, encode, decode, t)
+                # mu0, log_sigma_diag0, W, U, b = encode(phi, Xtrue)
+                # z = sample_from_pz(mu0, log_sigma_diag0, W, U, b)
+                # logits = decode(theta, z)
+                # Xhat = npr.binomial(1, logits)
+                #
+                # Xtrue_im = Xtrue.reshape(28, 28)
+                # Xhat_im = Xhat.reshape(28, 28)
+                #
+                # plot_mnist(Xtrue_im, Xhat_im)
+                # plt.savefig(figname.format(t))
+                # plt.close()
+
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
     pbar.close()

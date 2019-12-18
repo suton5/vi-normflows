@@ -5,7 +5,7 @@ import autograd.scipy as sp
 
 from .transformations import sigmoid
 from .flows import planar_flow
-from .nn_models import nn
+
 
 def mvn(Z, mu, sigma_diag):
     """Multivariate normal distribution
@@ -54,6 +54,9 @@ def log_mvn(Z, mu, log_sigma_diag):
     return logprob
 
 
+log_std_norm = lambda x: -x.shape[1] / 2 * np.log(2 * np.pi) - 0.5 * np.sum(x * x, axis=1)
+
+
 def prob_gm(Z, mu, sigma_diag, pi):
     G = pi.shape[0] + 1
     prob = 0
@@ -80,17 +83,21 @@ def log_prob_gm(Z, mu, log_sigma_diag, logit_pi):
     return np.log(prob)
 
 
+def log_bern_mult(X, p):
+    # Check that this should be summed
+    return np.sum(X * np.log(p) + (1 - X) * np.log(1 - p))
+
+
 def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
     N, D = mu.shape
     sd = np.sqrt(np.exp(log_sigma_diag))
 
-    Z = np.zeros((K + 1, N, D))
-    z = np.random.randn(N, D) * sd + mu
+    zk = np.random.randn(N, D)
+    zk = zk * sd + mu
 
-    Z[0] = z
     for k in range(K):
-        Z[k + 1] = planar_flow(z, W[k], U[k], b[k])
-    return Z
+        zk = planar_flow(zk, W[k], U[k], b[k])
+    return zk
 
 
 def make_samples_z(mu, log_sigma_diag, W, U, b, K):

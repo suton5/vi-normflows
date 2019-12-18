@@ -29,6 +29,10 @@ class Feedforward:
             self.weights = self.random.normal(0, 1, size=(1, self.D))
         else:
             self.weights = weights
+        if 'output_activation_fn' in architecture:
+            self.output_activation_fn = architecture['output_activation_fn']
+        else:
+            self.output_activation_fn = lambda x: x
 
         self.objective_trace = np.empty((1, 1))
         self.weight_trace = np.empty((1, self.D))
@@ -77,7 +81,7 @@ class Feedforward:
         output = np.matmul(W, input) + b
         assert output.shape[1] == self.params['D_out']
 
-        return output
+        return self.output_activation_fn(output)
 
     def make_objective(self, x_train, y_train, reg_param=None):
         ''' Make objective functions: depending on whether or not you want to apply l2 regularization '''

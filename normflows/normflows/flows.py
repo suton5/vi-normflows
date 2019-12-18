@@ -23,6 +23,9 @@ def planar_flow(z: np.ndarray,
     Transforms given samples according to the planar flow
     :math:`f(z) = z + uh(w^Tz + b)`
     """
+    assert np.all(np.array([w.shape[0], u.shape[0], b.shape[0]]) == z.shape[0]), 'Incorrect first dimension'
+    assert np.all(np.array([w.shape[1], u.shape[1]]) == z.shape[1]), "Incorrect second dimension"
+
     u = _get_uhat(u, w)
     assert np.all(np.sum(u * w, axis=1)) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
     assert np.all(np.sum(u * w, axis=1)) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
