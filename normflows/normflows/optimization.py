@@ -11,7 +11,7 @@ from .distributions import sample_from_pz, make_samples_z
 from .plotting import plot_samples, plot_obs_latent, plot_mnist
 from .nn_models import nn
 from .config import figname
-from .utils import clear_figs, get_samples_from_params, compare_reconstruction
+from .utils import clear_figs, get_samples_from_params, compare_reconstruction, make_batch_iter
 from.transformations import affine
 
 
@@ -34,8 +34,7 @@ def gradient_create(F, D, N, unpack_params):
 
     def variational_objective(params, t):
         phi, theta = unpack_params(params)
-        z0 = rs.randn(N, D)  # Gaussian noise here. Will add back in mu and sigma in F
-        free_energy = F(z0, phi, theta, t)
+        free_energy = F(phi, theta, t)
         return free_energy
 
     gradient = grad(variational_objective)
@@ -45,7 +44,7 @@ def gradient_create(F, D, N, unpack_params):
 
 def optimize(logp, X, D, K, N, init_params,
              unpack_params, encode, decode,
-             max_iter, step_size, verbose=True):
+             max_iter, batch_size, step_size, verbose=True):
     """Run the optimization for a mixture of Gaussians
 
     Arguments:
@@ -58,6 +57,7 @@ def optimize(logp, X, D, K, N, init_params,
         max_iter {int} -- Maximum iterations of optimization
         step_size {float} -- Learning rate for optimizer
     """
+    batch_iter = make_batch_iter(X, batch_size, max_iter)
     def logq0(z):
         """Just a standard Gaussian
         """
@@ -68,9 +68,11 @@ def optimize(logp, X, D, K, N, init_params,
 
     logdet_jac = lambda w, z, b: np.sum(w * hprime(np.sum(w * z, axis=1) + b).reshape(-1, 1), axis=1)
 
-    def F(z0, phi, theta, t):
+    def F(phi, theta, t):
         eps = 1e-7
-        mu0, log_sigma_diag0, W, U, B = encode(phi, X)
+        Xbatch = batch_iter(t)
+        z0 = rs.randn(Xbatch.shape[0], D)
+        mu0, log_sigma_diag0, W, U, B = encode(phi, Xbatch)
         cooling_max = np.min(np.array([max_iter / 2, 10000]))
         beta_t = np.min(np.array([1, 0.001 + t / cooling_max]))
 
@@ -98,7 +100,7 @@ def optimize(logp, X, D, K, N, init_params,
 
         logits = decode(theta, zk)
 
-        second = np.mean(logp(X, zk, logits))
+        second = np.mean(logp(Xbatch, zk, logits))
         # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
 
         # return first - second - third

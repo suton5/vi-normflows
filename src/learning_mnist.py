@@ -98,7 +98,7 @@ def logp(X, Z, logits):
 
 
 def run_optimization(X, init_params, unpack_params, encode, decode,
-                     max_iter=20000, N=None, step_size=1e-4):
+                     max_iter=20000, batch_size=256, N=None, step_size=1e-4):
     if not N:
         N = X.shape[0]
     else:
@@ -106,7 +106,7 @@ def run_optimization(X, init_params, unpack_params, encode, decode,
         X = X[idx]
     return optimization.optimize(logp, X, dim_z, K, N,
                                  init_params, unpack_params, encode, decode,
-                                 max_iter, step_size,
+                                 max_iter, batch_size, step_size,
                                  verbose=True)
 
 
@@ -116,7 +116,7 @@ def main():
     init_params = get_init_params()
 
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
-                                  max_iter=5000, N=1000, step_size=1e-3)
+                                  max_iter=5000, batch_size=256, N=1000, step_size=1e-4)
 
     print("DONE")
 
