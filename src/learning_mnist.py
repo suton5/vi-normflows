@@ -5,15 +5,15 @@ import autograd.numpy as np
 import autograd.numpy.random as npr
 from mlxtend.data import loadlocal_mnist
 
-from normflows import (config, utils, optimization,
+from normflows import (config, optimization,
                        distributions, nn_models, transformations)
 
 
 K = 3
-dim_z = 32
+dim_z = 2
 dim_x = 28 * 28
-width = 100
-n_hidden = 2
+width = 64
+n_hidden = 3
 activation_fn = transformations.relu
 
 encoder_architecture = {
@@ -81,7 +81,7 @@ def make_unpack_params():
 
 
 def get_init_params():
-    init_weights = np.random.randn(encoder.D + decoder.D) * 0.1
+    init_weights = np.random.randn(encoder.D + decoder.D) * 0.05
 
     return init_weights
 
@@ -118,9 +118,9 @@ def main():
     init_params = get_init_params()
 
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
-                                  max_iter=5000, batch_size=128, N=1000, step_size=1e-3)
+                                  max_iter=10000, batch_size=128, N=2000, step_size=1e-3)
     for arr, name in [(phi, 'phi'), (theta, 'theta')]:
-        np.savez(config.models / "mnist" / f"weights_{name}.npz", arr)
+        np.save(config.models / "mnist" / f"weights_{name}.npy", arr)
     print("DONE")
 
     #TODO: Make a 2-d figure showing both the variational latent and the generative model
