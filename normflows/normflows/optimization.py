@@ -94,8 +94,8 @@ def optimize(logp, X, D, K, N, init_params,
 
         logits = decode(theta, zk)
 
-        second = np.mean(logp(Xbatch, zk, logits))
-        # second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
+        # second = np.mean(logp(Xbatch, zk, logits))
+        second = np.mean(logp(X, zk, theta)) * beta_t  # Play with temperature
 
         # return first - second - third
         return first - second - third

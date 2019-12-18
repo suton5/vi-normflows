@@ -12,25 +12,27 @@ from normflows import (config, utils, optimization,
 K = 3
 dim_z = 32
 dim_x = 28 * 28
-width = 64
+width = 100
+n_hidden = 2
+activation_fn = transformations.relu
 
 encoder_architecture = {
-    'width': 64,
-    'hidden_layers': 2,
+    'width': width,
+    'hidden_layers': n_hidden,
     'input_dim': dim_x,
     'output_dim': 2 * dim_z + 2 * dim_z * K + 1 * K,
     'activation_fn_type': 'tanh',
     'activation_fn_params': '',
-    'activation_fn': np.tanh
+    'activation_fn': activation_fn
 }
 decoder_architecture = {
-    'width': 64,
-    'hidden_layers': 2,
+    'width': width,
+    'hidden_layers': n_hidden,
     'input_dim': dim_z,
     'output_dim': dim_x,
     'activation_fn_type': 'tanh',
     'activation_fn_params': '',
-    'activation_fn': np.tanh,
+    'activation_fn': activation_fn,
     'output_activation_fn': transformations.sigmoid
 }
 
@@ -116,9 +118,11 @@ def main():
     init_params = get_init_params()
 
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
-                                  max_iter=5000, batch_size=256, N=1000, step_size=1e-4)
-
+                                  max_iter=5000, batch_size=128, N=1000, step_size=1e-3)
+    for arr, name in [(phi, 'phi'), (theta, 'theta')]:
+        np.savez(config.models / "mnist" / f"weights_{name}.npz", arr)
     print("DONE")
+
     #TODO: Make a 2-d figure showing both the variational latent and the generative model
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 import autograd.numpy as np
 import autograd.numpy.random as npr
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from .config import figs, rs, figname
 from .distributions import make_samples_z, sample_from_pz
@@ -37,10 +38,10 @@ def compare_reconstruction(phi, theta, x_true, encode, decode, t):
 
 
 def make_batch_iter(X, batch_size, max_iter):
-    #TODO: This currently breaks on the last epoch
     N, D = X.shape
-    n_epochs = max_iter // batch_size
-    n_batches = N // batch_size
+    n_batches = int(np.ceil(N / batch_size))
+    n_epochs = int(np.ceil(max_iter / n_batches))
+
 
     idx = np.arange(N)
     batch_sched = []
@@ -50,8 +51,9 @@ def make_batch_iter(X, batch_size, max_iter):
         batch_sched.append(batches)
 
     def get_batch(t):
-        epoch = t // batch_size
+        epoch = int(np.floor(t / n_batches))
         batch = t % n_batches
-        idx_batch = batch_sched[epoch][batch]
+        epoch_idx = batch_sched[epoch]
+        idx_batch = epoch_idx[batch]
         return X[idx_batch].reshape(len(idx_batch), D)
     return get_batch

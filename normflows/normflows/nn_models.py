@@ -174,5 +174,3 @@ default_architecture = {'width': 8,
                         'activation_fn_params': 'c=0, alpha=1',
                         'activation_fn': lambda x: np.exp(-1 * (x - 0)**2)}
 
-
-nn = Feedforward(architecture=default_architecture)
