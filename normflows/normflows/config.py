@@ -9,6 +9,7 @@ mnist = data / 'mnist'
 notebooks = root / 'notebooks'
 figs = root / 'figures'
 models = root / 'models'
+results = root / 'results'
 
 figname = str(figs / 'iter_{}.png')
 rs = npr.RandomState(101)

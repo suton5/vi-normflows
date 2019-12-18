@@ -10,18 +10,19 @@ from normflows import (config, optimization,
 
 
 K = 16
-dim_z = 2
+dim_z = 40
 dim_x = 28 * 28
 width = 64
 n_hidden = 3
 activation_fn = transformations.relu
+activation_fn_type = 'relu'
 
 encoder_architecture = {
     'width': width,
     'hidden_layers': n_hidden,
     'input_dim': dim_x,
     'output_dim': 2 * dim_z + 2 * dim_z * K + 1 * K,
-    'activation_fn_type': 'tanh',
+    'activation_fn_type': activation_fn_type,
     'activation_fn_params': '',
     'activation_fn': activation_fn
 }
@@ -30,7 +31,7 @@ decoder_architecture = {
     'hidden_layers': n_hidden,
     'input_dim': dim_z,
     'output_dim': dim_x,
-    'activation_fn_type': 'tanh',
+    'activation_fn_type': activation_fn_type,
     'activation_fn_params': '',
     'activation_fn': activation_fn,
     'output_activation_fn': transformations.sigmoid
@@ -46,7 +47,7 @@ def load_data():
         images_path=str(config.mnist / 'train-images-idx3-ubyte'),
         labels_path=str(config.mnist / 'train-labels-idx1-ubyte'))
 
-    keep_digits = np.isin(y, [1, 4])
+    keep_digits = np.isin(y, [0, 1, 4, 7])
     X = X[keep_digits]
     y = y[keep_digits]
     X = X / 255
@@ -120,7 +121,7 @@ def main():
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
                                   max_iter=10000, batch_size=128, N=2000, step_size=1e-3)
     for arr, name in [(phi, 'phi'), (theta, 'theta')]:
-        np.save(config.models / "mnist" / f"weights_{name}.npy", arr)
+        np.save(config.models / "mnist" / f"weights_{name}_{K}.npy", arr)
     print("DONE")
 
     #TODO: Make a 2-d figure showing both the variational latent and the generative model

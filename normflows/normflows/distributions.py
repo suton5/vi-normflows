@@ -85,7 +85,8 @@ def log_prob_gm(Z, mu, log_sigma_diag, logit_pi):
 
 def log_bern_mult(X, p):
     # Check that this should be summed
-    return np.sum(X * np.log(p) + (1 - X) * np.log(1 - p))
+    eps = 1e-7
+    return np.sum(X * np.log(eps + p) + (1 - X) * np.log(eps + 1 - p))
 
 
 def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
