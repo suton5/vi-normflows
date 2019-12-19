@@ -2,7 +2,6 @@
 Going deep into the MNIST dataset
 """
 import autograd.numpy as np
-import autograd.numpy.random as npr
 from mlxtend.data import loadlocal_mnist
 
 from normflows import (config, optimization,
@@ -10,7 +9,7 @@ from normflows import (config, optimization,
 
 
 K = 16
-dim_z = 40
+dim_z = 2
 dim_x = 28 * 28
 width = 64
 n_hidden = 3
@@ -121,7 +120,7 @@ def main():
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
                                   max_iter=10000, batch_size=128, N=2000, step_size=1e-3)
     for arr, name in [(phi, 'phi'), (theta, 'theta')]:
-        np.save(config.models / "mnist" / f"weights_{name}_{K}.npy", arr)
+        np.save(config.models / "mnist2d" / f"weights_{name}_{K}.npy", arr)
     print("DONE")
 
     #TODO: Make a 2-d figure showing both the variational latent and the generative model

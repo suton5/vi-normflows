@@ -11,7 +11,7 @@ from .config import results
 
 
 rs = npr.RandomState(0)
-clear_figs()
+# clear_figs()
 
 
 def gradient_create(F, D, N, unpack_params):
@@ -103,7 +103,7 @@ def optimize(logp, X, D, K, N, init_params,
             if t % 200 == 0:
                 Xtrue = X[101].reshape(1, -1)
                 phi, theta = unpack_params(params)
-                compare_reconstruction(phi, theta, Xtrue, encode, decode, t)
+                compare_reconstruction(phi, theta, Xtrue, encode, decode, K, t)
 
             if t == max_iter - 1:
                 variational_lower_bound = objective(params, t)

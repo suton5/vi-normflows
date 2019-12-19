@@ -22,7 +22,7 @@ def get_samples_from_params(phi, theta, X, K):
     return Xhat, ZK
 
 
-def compare_reconstruction(phi, theta, x_true, encode, decode, t):
+def compare_reconstruction(phi, theta, x_true, encode, decode, K, t):
     mu0, log_sigma_diag0, W, U, b = encode(phi, x_true)
     K = W.shape[0]
     z = sample_from_pz(mu0, log_sigma_diag0, W, U, b, K)
@@ -33,7 +33,7 @@ def compare_reconstruction(phi, theta, x_true, encode, decode, t):
     xhat_im = xhat.reshape(28, 28)
 
     plot_mnist(x_true_im, xhat_im)
-    plt.savefig(figname.format(t))
+    plt.savefig(figname.format(K, t))
     plt.close()
 
 

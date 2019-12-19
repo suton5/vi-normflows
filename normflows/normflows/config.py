@@ -11,5 +11,5 @@ figs = root / 'figures'
 models = root / 'models'
 results = root / 'results'
 
-figname = str(figs / 'iter_{}.png')
+figname = str(figs / '{}_flows_iter_{}.png')
 rs = npr.RandomState(101)
