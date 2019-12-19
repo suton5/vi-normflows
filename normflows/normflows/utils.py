@@ -23,11 +23,12 @@ def get_samples_from_params(phi, theta, X, K):
 
 
 def compare_reconstruction(phi, theta, x_true, encode, decode, K, t):
+    eps = 1e-7
     mu0, log_sigma_diag0, W, U, b = encode(phi, x_true)
     K = W.shape[0]
     z = sample_from_pz(mu0, log_sigma_diag0, W, U, b, K)
     logits = decode(theta, z)
-    xhat = npr.binomial(1, logits)
+    xhat = npr.binomial(1, logits + eps)
 
     x_true_im = x_true.reshape(28, 28)
     xhat_im = xhat.reshape(28, 28)

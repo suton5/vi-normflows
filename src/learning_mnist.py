@@ -8,7 +8,7 @@ from normflows import (config, optimization,
                        distributions, nn_models, transformations)
 
 
-K = 16
+K = 4
 dim_z = 2
 dim_x = 28 * 28
 width = 64
@@ -118,7 +118,7 @@ def main():
     init_params = get_init_params()
 
     phi, theta = run_optimization(X, init_params, unpack_params, encode, decode,
-                                  max_iter=10000, batch_size=128, N=2000, step_size=1e-3)
+                                  max_iter=4000, batch_size=128, N=2000, step_size=1e-3)
     for arr, name in [(phi, 'phi'), (theta, 'theta')]:
         np.save(config.models / "mnist2d" / f"weights_{name}_{K}.npy", arr)
     print("DONE")
