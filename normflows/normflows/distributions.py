@@ -90,8 +90,9 @@ def log_bern_mult(X, p):
 
 
 def sample_from_pz(mu, log_sigma_diag, W, U, b, K):
+    eps = 1e-7
     N, D = mu.shape
-    sd = np.sqrt(np.exp(log_sigma_diag))
+    sd = np.sqrt(eps + np.exp(log_sigma_diag))
 
     zk = np.random.randn(N, D)
     zk = zk * sd + mu

@@ -71,7 +71,7 @@ def optimize(logp, X, D, K, N, init_params,
         cooling_max = np.min(np.array([max_iter / 4, 10000]))
         beta_t = np.min(np.array([1, 0.001 + t / cooling_max]))
 
-        sd = np.sqrt(np.exp(log_sigma_diag0))
+        sd = np.sqrt(eps + np.exp(log_sigma_diag0))
         zk = z0 * sd + mu0
         # Unsure if this should be z0 or z1 (after adding back in mean and sd)
         first = np.mean(logq0(z0))
@@ -88,8 +88,8 @@ def optimize(logp, X, D, K, N, init_params,
         # second = np.mean(logp(Xbatch, zk, logits))
         second = np.mean(logp(Xbatch, zk, logits)) * beta_t  # Play with temperature
 
-        return -second - third
-        # return first - second - third
+        # return -second - third
+        return first - second - third
 
     objective, gradient = gradient_create(F, D, N, unpack_params)
     pbar = tqdm(total=max_iter)
@@ -101,13 +101,18 @@ def optimize(logp, X, D, K, N, init_params,
                 grad_mag = np.linalg.norm(gradient(params, t))
                 tqdm.write(f"Iteration {t}; objective: {objective(params, t)} gradient mag: {grad_mag:.3f}")
             if t % 200 == 0:
-                Xtrue = X[101].reshape(1, -1)
-                phi, theta = unpack_params(params)
-                compare_reconstruction(phi, theta, Xtrue, encode, decode, K, t)
+                try:
+                    Xtrue = X[101].reshape(1, -1)
+                    phi, theta = unpack_params(params)
+                    compare_reconstruction(phi, theta, Xtrue, encode, decode, K, t)
+                except ValueError:
+                    tqdm.write("nan gradient")
+                    tqdm.write(str(params))
+                    tqdm.write(str(unpack_params(params)))
 
             if t == max_iter - 1:
                 variational_lower_bound = objective(params, t)
-                with (results / 'free_energy.txt').open('a') as f:
+                with (results / 'reg_free_energy2d.txt').open('a') as f:
                     f.write(f'\n{K} flows: {variational_lower_bound}')
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
