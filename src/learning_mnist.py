@@ -1,5 +1,5 @@
 """
-Going deep into the MNIST dataset
+Building a VAE based on the MNIST dataset
 """
 import autograd.numpy as np
 from mlxtend.data import loadlocal_mnist
