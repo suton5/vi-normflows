@@ -112,7 +112,7 @@ def optimize(logp, X, D, K, N, init_params,
 
             if t == max_iter - 1:
                 variational_lower_bound = objective(params, t)
-                with (results / 'reg_free_energy2d.txt').open('a') as f:
+                with (results / 'free_energy.txt').open('a') as f:
                     f.write(f'\n{K} flows: {variational_lower_bound}')
 
     variational_params = adam(gradient, init_params, step_size=step_size, callback=callback, num_iters=max_iter)
