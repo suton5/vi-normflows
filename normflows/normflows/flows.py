@@ -14,43 +14,29 @@ def planar_flow(z: np.ndarray,
 
     :param z: numpy array, samples to be transformed
         Shape: (n_samples, n_dim)
-    :param u: numpy array, parameter of flow
-    :param w: numpy array, parameter of flow
-    :param b: numeric, parameter of flow
+    :param u: numpy array, parameter of flow (N, D)
+    :param w: numpy array, parameter of flow (N, D)
+    :param b: numeric, parameter of flow (N,)
     :param h: callable, non-linear function (default tanh)
     :returns: numpy array, transformed samples
 
     Transforms given samples according to the planar flow
     :math:`f(z) = z + uh(w^Tz + b)`
     """
-    if h == np.tanh:
-        print("prev u", u)
-        u = _get_uhat(u, w)
-    assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
+    assert np.all(np.array([w.shape[0], u.shape[0], b.shape[0]]) == z.shape[0]), 'Incorrect first dimension'
+    assert np.all(np.array([w.shape[1], u.shape[1]]) == z.shape[1]), "Incorrect second dimension"
 
-    assert np.dot(u, w) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
-
-    w = w.flatten()
-    u = u.flatten()
-
-    assert z.ndim == 2, f'z has incorrect number of dimensions ({z.ndim}).'
-
-    N = z.shape[0]
-    d = z.shape[1]
-
-    assert d == w.shape[0], f'Dimensions of z and w are not aligned ({d} != {w.shape[0]}).'
-    assert d == u.shape[0], f'Dimensions of z and u are not aligned ({d} != {u.shape[0]}).'
-
-    dotprod = np.dot(w, z.T)
-    h_arg = dotprod + b
-    h_res = np.repeat(h(h_arg).reshape(-1, 1), d, axis=1)
-    u_mult = u * h_res
-    res = z + u_mult.reshape(N, d)
+    u = _get_uhat(u, w)
+    assert np.all(np.sum(u * w, axis=1)) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
+    assert np.all(np.sum(u * w, axis=1)) >= -1, f'Flow is not guaranteed to be invertible (u^Tw < -1: {w._value, u._value})'
+    res = z + np.sum(u * np.tanh(np.sum(z * w, axis=1) + b).reshape(-1, 1), axis=1).reshape(z.shape[0], -1)
+    assert res.shape == z.shape, f'Incorrect output shape: {(res.shape)}'
     return res
 
 
 def _get_uhat(u, w):
-    return u + (m(np.dot(w, u)) - np.dot(w, u)) * (w/np.linalg.norm(w))#np.divide(w, np.dot(w, w))
+    N, D = u.shape
+    return u + (m(np.sum(w * u, axis=1).reshape(-1, 1)) - np.sum(w * u, axis=1).reshape(-1, 1)) * (w / (np.linalg.norm(w, axis=1).reshape(-1, 1) ** 2)).reshape(N, D)
 
 
 def m(x):
